@@ -4,17 +4,15 @@
  * (Mobile Phone, Laptop, Desktop, Tablet) in real time.
  */
 
-// Universal persistent cloud sync endpoint
-export const CLOUD_SYNC_ENDPOINT = 'https://extendsclass.com/api/json-storage/bin/ebecffe';
-
-const SYNC_STORAGE_KEY = 'zoriq_cloud_sync_meta';
+export const CLOUD_STORAGE_FALLBACK = 'https://extendsclass.com/api/json-storage/bin/ebecffe';
 
 /**
  * Fetch the latest live catalog, settings, and orders from the cloud
  */
 export const fetchCloudStore = async () => {
+  // 1. Try same-origin /api/sync (Zero CORS / preflight issues, works on both Vercel & localhost)
   try {
-    const res = await fetch(CLOUD_SYNC_ENDPOINT, {
+    const res = await fetch('/api/sync', {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
@@ -23,24 +21,48 @@ export const fetchCloudStore = async () => {
       signal: AbortSignal.timeout(6000)
     });
 
-    if (!res.ok) {
-      throw new Error(`Cloud fetch returned status ${res.status}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && Array.isArray(data.products) && data.products.length > 0) {
+        return {
+          products: data.products,
+          sellerSettings: data.sellerSettings || null,
+          orders: Array.isArray(data.orders) ? data.orders : [],
+          lastUpdated: data.lastUpdated || null
+        };
+      }
     }
-
-    const data = await res.json();
-    if (data && Array.isArray(data.products)) {
-      return {
-        products: data.products,
-        sellerSettings: data.sellerSettings || null,
-        orders: Array.isArray(data.orders) ? data.orders : [],
-        lastUpdated: data.lastUpdated || null
-      };
-    }
-    return null;
-  } catch (error) {
-    console.warn('Notice: Cloud sync fetch fallback to local cache:', error.message);
-    return null;
+  } catch (err) {
+    console.warn('Notice: /api/sync GET fallback:', err.message);
   }
+
+  // 2. Direct cloud fallback
+  try {
+    const res = await fetch(CLOUD_STORAGE_FALLBACK, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Cache-Control': 'no-cache'
+      },
+      signal: AbortSignal.timeout(6000)
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data && Array.isArray(data.products) && data.products.length > 0) {
+        return {
+          products: data.products,
+          sellerSettings: data.sellerSettings || null,
+          orders: Array.isArray(data.orders) ? data.orders : [],
+          lastUpdated: data.lastUpdated || null
+        };
+      }
+    }
+  } catch (error) {
+    console.warn('Notice: Direct cloud fallback:', error.message);
+  }
+
+  return null;
 };
 
 /**
@@ -55,16 +77,17 @@ export const fetchCloudProducts = async () => {
  * Push updated products, settings, or orders to the cloud so all devices immediately receive them
  */
 export const pushCloudStore = async ({ products, sellerSettings, orders }) => {
-  try {
-    const payload = {
-      products: products || [],
-      sellerSettings: sellerSettings || {},
-      orders: orders || [],
-      lastUpdated: new Date().toISOString()
-    };
+  const payload = {
+    products: products || [],
+    sellerSettings: sellerSettings || {},
+    orders: orders || [],
+    lastUpdated: new Date().toISOString()
+  };
 
-    const res = await fetch(CLOUD_SYNC_ENDPOINT, {
-      method: 'PUT',
+  // 1. Try same-origin /api/sync
+  try {
+    const res = await fetch('/api/sync', {
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
@@ -73,17 +96,25 @@ export const pushCloudStore = async ({ products, sellerSettings, orders }) => {
     });
 
     if (res.ok) {
-      try {
-        localStorage.setItem(
-          SYNC_STORAGE_KEY,
-          JSON.stringify({ lastSynced: new Date().toISOString(), status: 'synced' })
-        );
-      } catch {}
       return true;
     }
-    return false;
+  } catch (err) {
+    console.warn('Notice: /api/sync POST fallback:', err.message);
+  }
+
+  // 2. Direct cloud fallback with text/plain
+  try {
+    const res = await fetch(CLOUD_STORAGE_FALLBACK, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'text/plain'
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(8000)
+    });
+    return res.ok;
   } catch (error) {
-    console.warn('Notice: Cloud sync push error:', error.message);
+    console.warn('Notice: Direct push error:', error.message);
     return false;
   }
 };
