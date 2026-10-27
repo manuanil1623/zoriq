@@ -7,8 +7,6 @@ export const INITIAL_CATEGORIES = [
   { id: 'accessories', name: 'Accessories', icon: 'Briefcase' },
 ];
 
-export const INITIAL_PRODUCTS = [];
-
 export const STARTER_PRODUCTS = [
   {
     id: 'starter-headphone-1',
@@ -144,6 +142,8 @@ export const STARTER_PRODUCTS = [
   }
 ];
 
+export const INITIAL_PRODUCTS = [...STARTER_PRODUCTS];
+
 export const DEFAULT_SELLER_SETTINGS = {
   storeName: 'ZORIQ',
   sellerUpiId: '',
@@ -159,7 +159,10 @@ export const DEFAULT_SELLER_SETTINGS = {
   currency: '₹',
   contactEmail: '',
   contactPhone: '',
-  adminPin: '7784'
+  adminPin: '7784',
+  razorpayEnabled: true,
+  razorpayKeyId: '',  // Razorpay Key ID (starts with rzp_test_ or rzp_live_)
+  razorpayKeySecret: '',  // Not used client-side, but stored for reference
 };
 
 export const SAMPLE_ORDERS = [];

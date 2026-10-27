@@ -19,7 +19,8 @@ import {
   Sparkles,
   ExternalLink,
   Laptop,
-  Send
+  Send,
+  CreditCard
 } from 'lucide-react';
 
 // UPI In-App and Collect providers configuration
@@ -114,7 +115,8 @@ export default function CheckoutModal() {
     cartTotal,
     sellerSettings,
     placeOrder,
-    setSelectedInvoice
+    setSelectedInvoice,
+    addToast
   } = useStore();
 
   // Multi-step checkout: 1: Shipping, 2: Payment Gateway, 3: Success Confirmation
@@ -172,6 +174,8 @@ export default function CheckoutModal() {
   const [desktopUpiSuffix, setDesktopUpiSuffix] = useState('@okhdfcbank');
   const [desktopCollectStage, setDesktopCollectStage] = useState('input'); // 'input' | 'sent'
   const [desktopUtr, setDesktopUtr] = useState('');
+  const [upiUtrInput, setUpiUtrInput] = useState('');
+  const [utrError, setUtrError] = useState('');
   const [desktopUpiError, setDesktopUpiError] = useState('');
   const [mobileLaunchedApp, setMobileLaunchedApp] = useState(null);
 
@@ -207,6 +211,8 @@ export default function CheckoutModal() {
       setDesktopCollectStage('input');
       setDesktopUpiInput('');
       setDesktopUtr('');
+      setUpiUtrInput('');
+      setUtrError('');
       setDesktopUpiError('');
       setMobileLaunchedApp(null);
       setIsVerifyingUpi(false);
@@ -273,8 +279,7 @@ export default function CheckoutModal() {
       }
     }
 
-    const generatedUpiTxnId = `UPI/${new Date().getFullYear()}/${Math.floor(100000000000 + Math.random() * 900000000000)}`;
-    const finalUtr = (customUtr && customUtr.trim()) || (desktopUtr && desktopUtr.trim()) || generatedUpiTxnId;
+    const finalUtr = (customUtr && customUtr.trim()) || (upiUtrInput && upiUtrInput.trim()) || (desktopUtr && desktopUtr.trim()) || null;
     const finalVpa = customUpiVpa || (desktopUpiInput ? getFullEnteredUpiId() : (upiVpaInput || 'customer@upi'));
 
     const order = placeOrder({
@@ -298,6 +303,94 @@ export default function CheckoutModal() {
       });
     } catch {
       // ignore in environments without canvas
+    }
+  };
+
+  // Razorpay Checkout Handler
+  const handleRazorpayPayment = () => {
+    setIsVerifyingUpi(true);
+
+    const proceedWithRazorpay = () => {
+      // Use configured Key ID, or default official test key for sandbox testing
+      const razorpayKeyId = sellerSettings.razorpayKeyId?.trim() || 'rzp_test_1DP5mmOlF5G5ag';
+
+      const options = {
+        key: razorpayKeyId,
+        amount: Math.round(cartTotal * 100), // Razorpay expects amount in paise (1 INR = 100 paise)
+        currency: 'INR',
+        name: sellerSettings.storeName || 'ZORIQ',
+        description: `Order Payment (${cart.length} item${cart.length > 1 ? 's' : ''})`,
+        image: '/zoriq-logo.jpg',
+        prefill: {
+          name: customer.name,
+          email: customer.email,
+          contact: customer.phone,
+        },
+        notes: {
+          address: `${customer.address}, ${customer.city}, ${customer.state} - ${customer.pincode}`,
+        },
+        theme: {
+          color: '#4F46E5', // Indigo
+        },
+        handler: function (response) {
+          // Payment confirmed and captured by the bank!
+          setIsVerifyingUpi(false);
+          const order = placeOrder({
+            customer,
+            paymentMethod: 'RAZORPAY',
+            paymentDetails: {
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpayOrderId: response.razorpay_order_id || null,
+              razorpaySignature: response.razorpay_signature || null,
+              upiTxnId: response.razorpay_payment_id,
+            },
+          });
+
+          setPlacedOrder(order);
+          setStep(3);
+
+          try {
+            confetti({
+              particleCount: 100,
+              spread: 70,
+              origin: { y: 0.6 },
+            });
+          } catch {
+            // ignore
+          }
+        },
+        modal: {
+          ondismiss: function () {
+            setIsVerifyingUpi(false);
+          },
+        },
+      };
+
+      try {
+        const rzp = new window.Razorpay(options);
+        rzp.on('payment.failed', function (response) {
+          setIsVerifyingUpi(false);
+          alert(`Razorpay Payment Failed: ${response.error?.description || 'Transaction was declined.'}`);
+        });
+        rzp.open();
+      } catch (err) {
+        setIsVerifyingUpi(false);
+        console.error('Razorpay execution error:', err);
+        alert('Could not launch Razorpay. Please check your Key ID in Store Settings: ' + err.message);
+      }
+    };
+
+    if (window.Razorpay) {
+      proceedWithRazorpay();
+    } else {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => proceedWithRazorpay();
+      script.onerror = () => {
+        setIsVerifyingUpi(false);
+        alert('Could not load Razorpay SDK. Please check your internet connection.');
+      };
+      document.body.appendChild(script);
     }
   };
 
@@ -364,10 +457,16 @@ export default function CheckoutModal() {
 
   // Laptop: Confirm payment after user approved request on their phone
   const handleConfirmDesktopPayment = () => {
+    const utr = (upiUtrInput || desktopUtr).trim();
+    if (!utr || utr.length < 6) {
+      setUtrError('Please enter the 12-digit UPI Reference / UTR Number from your Google Pay/UPI app.');
+      return;
+    }
+    setUtrError('');
     setIsVerifyingUpi(true);
     setTimeout(() => {
       setIsVerifyingUpi(false);
-      handleCompleteOrder('UPI', getFullEnteredUpiId(), desktopUtr);
+      handleCompleteOrder('UPI', getFullEnteredUpiId(), utr);
     }, 850);
   };
 
@@ -573,7 +672,7 @@ export default function CheckoutModal() {
             </div>
 
             {/* Payment Method Selector Tabs */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               
               {/* Option A: UPI */}
               <div
@@ -639,6 +738,31 @@ export default function CheckoutModal() {
                     : hasCodDisabledItems
                     ? `Not available: "${itemsWithoutCod[0].name.slice(0, 22)}..." requires online UPI payment.`
                     : 'Pay with cash or UPI to delivery person upon arrival.'}
+                </p>
+              </div>
+
+              {/* Option: Razorpay */}
+              <div
+                onClick={() => setPaymentMethod('RAZORPAY')}
+                className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer ${
+                  paymentMethod === 'RAZORPAY'
+                    ? 'border-blue-600 bg-blue-50/50 shadow-md ring-2 ring-blue-500/20'
+                    : 'border-gray-200 hover:border-gray-300 bg-white'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center">
+                      <CreditCard className="w-4 h-4" />
+                    </div>
+                    <span className="font-bold text-xs sm:text-sm text-gray-900">Razorpay</span>
+                  </div>
+                  <span className="bg-blue-600 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded">
+                    AUTO VERIFY
+                  </span>
+                </div>
+                <p className="text-[11px] text-gray-500 leading-tight">
+                  Google Pay, Cards, NetBanking, UPI with instant automatic bank verification.
                 </p>
               </div>
 
@@ -964,19 +1088,33 @@ export default function CheckoutModal() {
                               </div>
                             </div>
 
-                            {/* Optional UTR Number Input */}
+                            {/* Required UTR Number Input */}
                             <div>
-                              <label className="block text-[11px] font-semibold text-gray-700 mb-1">
-                                12-Digit UPI Reference / UTR Number (Optional):
+                              <label className="block text-[11px] font-bold text-gray-800 mb-1">
+                                12-Digit UPI Reference / UTR Number: <span className="text-rose-500">*</span>
                               </label>
                               <input
                                 type="text"
                                 maxLength={16}
-                                value={desktopUtr}
-                                onChange={(e) => setDesktopUtr(e.target.value.replace(/[^a-zA-Z0-9]/g, ''))}
-                                placeholder="e.g. 409201839201"
-                                className="w-full px-3 py-2 text-xs font-mono bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                value={upiUtrInput}
+                                onChange={(e) => {
+                                  setUpiUtrInput(e.target.value.replace(/[^a-zA-Z0-9]/g, ''));
+                                  if (utrError) setUtrError('');
+                                }}
+                                placeholder="e.g. 409201839201 (from Google Pay)"
+                                className={`w-full px-3 py-2 text-xs font-mono bg-white border rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
+                                  utrError ? 'border-rose-400' : 'border-gray-300'
+                                }`}
                               />
+                              {utrError && (
+                                <p className="text-[11px] text-rose-500 font-semibold mt-1 flex items-center gap-1">
+                                  <AlertCircle className="w-3.5 h-3.5" />
+                                  <span>{utrError}</span>
+                                </p>
+                              )}
+                              <p className="text-[10px] text-gray-500 mt-1">
+                                💡 Open Google Pay &gt; Tap the completed transaction &gt; Copy the 12-digit UPI transaction ID.
+                              </p>
                             </div>
 
                             {/* Primary Confirm Button */}
@@ -989,7 +1127,7 @@ export default function CheckoutModal() {
                               {isVerifyingUpi ? (
                                 <>
                                   <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                                  <span>Verifying Payment with Bank...</span>
+                                  <span>Submitting Payment Reference...</span>
                                 </>
                               ) : (
                                 <>
@@ -1032,15 +1170,46 @@ export default function CheckoutModal() {
                               <span>Opening {mobileLaunchedApp}...</span>
                             </div>
                             <p className="text-[11px] text-gray-600 leading-relaxed">
-                              Complete the payment in <strong>{mobileLaunchedApp}</strong>. Once approved, tap below to confirm your order.
+                              Complete the payment in <strong>{mobileLaunchedApp}</strong>. Then enter the 12-digit UTR from the payment screen below:
                             </p>
+                            <div>
+                              <label className="block text-[11px] font-bold text-gray-800 mb-1">
+                                Enter 12-Digit UPI Reference / UTR Number: <span className="text-rose-500">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                maxLength={16}
+                                value={upiUtrInput}
+                                onChange={(e) => {
+                                  setUpiUtrInput(e.target.value.replace(/[^a-zA-Z0-9]/g, ''));
+                                  if (utrError) setUtrError('');
+                                }}
+                                placeholder="e.g. 409201839201"
+                                className={`w-full px-3 py-2 text-xs font-mono bg-white border rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
+                                  utrError ? 'border-rose-400' : 'border-gray-300'
+                                }`}
+                              />
+                              {utrError && (
+                                <p className="text-[11px] text-rose-500 font-semibold mt-1 flex items-center gap-1">
+                                  <AlertCircle className="w-3.5 h-3.5" />
+                                  <span>{utrError}</span>
+                                </p>
+                              )}
+                            </div>
                             <button
                               type="button"
-                              onClick={() => handleCompleteOrder('UPI')}
+                              onClick={() => {
+                                if (!upiUtrInput.trim() || upiUtrInput.trim().length < 6) {
+                                  setUtrError(`Please enter the 12-digit UTR from ${mobileLaunchedApp}.`);
+                                  return;
+                                }
+                                setUtrError('');
+                                handleCompleteOrder('UPI', null, upiUtrInput.trim());
+                              }}
                               className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
                             >
                               <CheckCircle2 className="w-4 h-4" />
-                              <span>I Have Completed Payment in {mobileLaunchedApp}</span>
+                              <span>I Have Paid — Submit UTR & Place Order</span>
                             </button>
                             <div className="flex items-center justify-between text-[10px] text-gray-500 pt-1">
                               <button
@@ -1183,16 +1352,70 @@ export default function CheckoutModal() {
                   </div>
                 )}
 
-                {/* Confirm Button for QR or Bank mode */}
+                {/* UTR Input & Confirm for QR or Bank mode */}
                 {(upiSubMode === 'qr' || upiSubMode === 'bank') && (
-                  <button
-                    type="button"
-                    onClick={() => handleCompleteOrder('UPI')}
-                    className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm shadow-md shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 active:scale-95"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>I have completed the payment (Confirm Order)</span>
-                  </button>
+                  <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-gray-200 shadow-sm space-y-2.5">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-800 mb-1">
+                        Enter 12-Digit UPI Transaction ID / UTR Number: <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        maxLength={16}
+                        value={upiUtrInput}
+                        onChange={(e) => {
+                          setUpiUtrInput(e.target.value.replace(/[^a-zA-Z0-9]/g, ''));
+                          if (utrError) setUtrError('');
+                        }}
+                        placeholder="e.g. 409201839201 (from your payment app)"
+                        className={`w-full px-3 py-2 text-xs font-mono bg-gray-50 border rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
+                          utrError ? 'border-rose-400' : 'border-gray-300'
+                        }`}
+                      />
+                      {utrError && (
+                        <p className="text-[11px] text-rose-500 font-semibold mt-1 flex items-center gap-1">
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          <span>{utrError}</span>
+                        </p>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-gray-500 flex items-start gap-1">
+                      <span>💡</span>
+                      <span>
+                        Open your UPI app &gt; Tap the completed transaction &gt; Copy the 12-digit <strong>UPI transaction ID</strong> or <strong>UTR</strong>.
+                      </span>
+                    </p>
+
+                    <button
+                      type="button"
+                      disabled={isVerifyingUpi}
+                      onClick={() => {
+                        if (!upiUtrInput.trim() || upiUtrInput.trim().length < 6) {
+                          setUtrError('Please enter the 12-digit UPI Reference / UTR Number from your payment app.');
+                          return;
+                        }
+                        setUtrError('');
+                        setIsVerifyingUpi(true);
+                        setTimeout(() => {
+                          setIsVerifyingUpi(false);
+                          handleCompleteOrder('UPI', null, upiUtrInput.trim());
+                        }, 600);
+                      }}
+                      className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+                    >
+                      {isVerifyingUpi ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                          <span>Submitting Payment Reference...</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+                          <span>Submit UTR & Place Order (₹{cartTotal.toLocaleString('en-IN')})</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 )}
 
               </div>
@@ -1264,6 +1487,85 @@ export default function CheckoutModal() {
               </div>
             )}
 
+            {/* --- DETAILED VIEW FOR RAZORPAY --- */}
+            {paymentMethod === 'RAZORPAY' && (
+              <div className="bg-gray-50 rounded-2xl p-4 sm:p-5 border border-gray-200/80 space-y-4 animate-in fade-in">
+                {/* Gateway Status Badge */}
+                <div className="flex items-center justify-between pb-2 border-b border-gray-200">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-xs text-gray-800">Gateway Status:</span>
+                    <span className="text-[11px] font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                      Razorpay Checkout
+                    </span>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                    sellerSettings.razorpayKeyId
+                      ? sellerSettings.razorpayKeyId.startsWith('rzp_test_')
+                        ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                        : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                      : 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                  }`}>
+                    {sellerSettings.razorpayKeyId
+                      ? sellerSettings.razorpayKeyId.startsWith('rzp_test_')
+                        ? '🧪 Test Mode Active'
+                        : '🟢 Live Gateway Active'
+                      : '⚡ Instant Sandbox Ready'}
+                  </span>
+                </div>
+
+                <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl text-blue-950 text-xs space-y-1.5">
+                  <div className="font-bold flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-blue-700" />
+                    <span>Instant Automated Bank Verification</span>
+                  </div>
+                  <p className="text-[11px] text-blue-900 leading-relaxed">
+                    Razorpay verifies your payment directly with your bank in real-time. Supports <strong>Google Pay, PhonePe, Paytm, all Debit/Credit Cards & NetBanking</strong>. Zero manual confirmation required.
+                  </p>
+                </div>
+
+                <div className="bg-white p-4 rounded-xl border border-gray-200 space-y-3 text-center">
+                  <div className="flex items-center justify-center gap-2 sm:gap-3 flex-wrap text-xs text-gray-600">
+                    <span className="px-2.5 py-1 bg-gray-50 border border-gray-200 rounded-lg font-semibold">📱 Google Pay</span>
+                    <span className="px-2.5 py-1 bg-gray-50 border border-gray-200 rounded-lg font-semibold">🟣 PhonePe</span>
+                    <span className="px-2.5 py-1 bg-gray-50 border border-gray-200 rounded-lg font-semibold">💳 All Cards</span>
+                    <span className="px-2.5 py-1 bg-gray-50 border border-gray-200 rounded-lg font-semibold">🏦 50+ Banks</span>
+                  </div>
+
+                  {!sellerSettings.razorpayKeyId && (
+                    <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-900 text-left flex items-start gap-2">
+                      <Sparkles className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <strong>Store Owner Notice:</strong> You can enter your personal Razorpay Key ID in <strong>Store Settings &gt; Razorpay</strong> to route real payments to your bank. You can test the checkout right now in Sandbox mode!
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    disabled={isVerifyingUpi}
+                    onClick={handleRazorpayPayment}
+                    className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold text-sm shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+                  >
+                    {isVerifyingUpi ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                        <span>Opening Razorpay Secure Portal...</span>
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck className="w-4 h-4 text-amber-300" />
+                        <span>Pay ₹{cartTotal.toLocaleString('en-IN')} via Razorpay / Google Pay</span>
+                      </>
+                    )}
+                  </button>
+
+                  <p className="text-[10px] text-gray-400">
+                    🔒 256-Bit SSL Encrypted &amp; PCI DSS Level 1 Certified via Razorpay
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Back to Shipping button */}
             <div className="pt-2 flex justify-start">
               <button
@@ -1283,14 +1585,28 @@ export default function CheckoutModal() {
         {step === 3 && placedOrder && (
           <div className="p-6 sm:p-8 text-center space-y-5 animate-in zoom-in-95">
             
-            {/* Success Icon */}
-            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-md shadow-emerald-500/20">
-              <CheckCircle2 className="w-10 h-10" />
+            {/* Status Icon */}
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto shadow-md ${
+              placedOrder.paymentStatus === 'Paid'
+                ? 'bg-emerald-100 text-emerald-600 shadow-emerald-500/20'
+                : 'bg-amber-100 text-amber-600 shadow-amber-500/20'
+            }`}>
+              {placedOrder.paymentStatus === 'Paid' ? (
+                <CheckCircle2 className="w-10 h-10" />
+              ) : (
+                <Clock className="w-10 h-10 animate-pulse text-amber-600" />
+              )}
             </div>
 
             <div>
-              <span className="inline-block px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full border border-emerald-200 mb-2">
-                Order Confirmed & Placed
+              <span className={`inline-block px-3 py-1 text-xs font-bold rounded-full border mb-2 ${
+                placedOrder.paymentStatus === 'Paid'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : 'bg-amber-50 text-amber-800 border-amber-300'
+              }`}>
+                {placedOrder.paymentStatus === 'Paid'
+                  ? 'Order Confirmed & Placed'
+                  : '⏳ Order Received — Payment Under Verification'}
               </span>
               <h3 className="text-2xl font-extrabold text-gray-900">
                 Thank You, {placedOrder.customer.name}!
@@ -1300,23 +1616,47 @@ export default function CheckoutModal() {
               </p>
             </div>
 
+            {/* Verification explanation for UPI orders */}
+            {placedOrder.paymentMethod === 'UPI' && placedOrder.paymentStatus !== 'Paid' && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-950 text-xs text-left space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                  <ShieldCheck className="w-4 h-4 text-amber-600" />
+                  <span>Direct UPI Payment Verification</span>
+                </div>
+                <p className="text-[11px] text-amber-900 leading-relaxed">
+                  We have logged your payment reference (<strong>{placedOrder.upiTxnId}</strong>). The store owner will verify this payment in their bank account before packing and shipping your items.
+                </p>
+              </div>
+            )}
+
             {/* Order Details Summary Box */}
             <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200/80 text-left space-y-2 text-xs">
               <div className="flex justify-between items-center pb-2 border-b border-gray-200">
                 <span className="text-gray-500">Payment Status:</span>
                 <span className={`font-bold px-2 py-0.5 rounded-full ${
-                  placedOrder.paymentMethod === 'UPI'
+                  placedOrder.paymentStatus === 'Paid'
                     ? 'bg-emerald-100 text-emerald-800'
-                    : 'bg-amber-100 text-amber-800'
+                    : 'bg-amber-100 text-amber-900 border border-amber-300'
                 }`}>
-                  {placedOrder.paymentMethod === 'UPI' ? 'Paid via UPI' : 'Cash on Delivery (Pending)'}
+                  {placedOrder.paymentStatus === 'Paid'
+                    ? placedOrder.paymentMethod === 'RAZORPAY' ? 'Paid via Razorpay' : 'Paid via UPI'
+                    : placedOrder.paymentMethod === 'COD'
+                    ? 'Cash on Delivery (Pending)'
+                    : '⏳ Payment Under Verification'}
                 </span>
               </div>
 
               {placedOrder.upiTxnId && (
                 <div className="flex justify-between items-center">
                   <span className="text-gray-500">UPI Ref / UTR:</span>
-                  <span className="font-mono text-gray-700">{placedOrder.upiTxnId}</span>
+                  <span className="font-mono font-bold text-indigo-900">{placedOrder.upiTxnId}</span>
+                </div>
+              )}
+
+              {placedOrder.razorpayPaymentId && (
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-500">Razorpay Payment ID:</span>
+                  <span className="font-mono font-bold text-blue-900">{placedOrder.razorpayPaymentId}</span>
                 </div>
               )}
 

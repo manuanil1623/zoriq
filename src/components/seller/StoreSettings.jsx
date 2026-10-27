@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useStore } from '../../context/StoreContext';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -15,14 +15,19 @@ import {
   ShieldCheck,
   AlertCircle,
   Sparkles,
-  Lock
+  Lock,
+  Download,
+  Upload,
+  Cloud,
+  ExternalLink
 } from 'lucide-react';
 
 export default function StoreSettings() {
-  const { sellerSettings, updateSellerSettings, resetAllDataToDefault } = useStore();
+  const { sellerSettings, updateSellerSettings, resetAllDataToDefault, exportCatalog, importCatalog } = useStore();
 
   const [settingsForm, setSettingsForm] = useState({ ...sellerSettings });
   const [copiedField, setCopiedField] = useState(null);
+  const fileInputRef = useRef(null);
 
   const handleChange = (key, value) => {
     setSettingsForm((prev) => ({ ...prev, [key]: value }));
@@ -45,6 +50,52 @@ export default function StoreSettings() {
       resetAllDataToDefault();
       setSettingsForm(sellerSettings);
     }
+  };
+
+  const handleTestRazorpay = () => {
+    const key = settingsForm.razorpayKeyId?.trim() || 'rzp_test_1DP5mmOlF5G5ag';
+    if (!window.Razorpay) {
+      alert('Razorpay SDK is loading. Please check your internet connection.');
+      return;
+    }
+    const options = {
+      key: key,
+      amount: 100, // ₹1.00 in paise
+      currency: 'INR',
+      name: settingsForm.storeName || 'Zoriq Store',
+      description: 'Razorpay Gateway Test Mode (₹1.00)',
+      handler: function (response) {
+        alert(`🎉 Razorpay Test Payment Successful!\nPayment ID: ${response.razorpay_payment_id}\n\nYour Razorpay integration is 100% active and working!`);
+      },
+      prefill: {
+        name: 'Store Owner',
+        email: 'seller@zoriq.in',
+        contact: '9999999999'
+      },
+      theme: { color: '#4f46e5' }
+    };
+    try {
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+    } catch (err) {
+      alert(`Razorpay Error: ${err.message || 'Failed to open Razorpay modal'}`);
+    }
+  };
+
+  const handleImportFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = importCatalog(event.target.result);
+      if (result.success) {
+        alert(`🎉 Successfully imported ${result.count} products! All devices can now access this catalog.`);
+      } else {
+        alert(`Import failed: ${result.error}`);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   // QR preview link
@@ -385,6 +436,178 @@ export default function StoreSettings() {
                 Your active PIN is <strong>{settingsForm.adminPin || '7784'}</strong>. You can change it anytime to keep your dashboard secure.
               </span>
             </div>
+          </div>
+        </div>
+
+        {/* Section 6: Razorpay Payment Gateway Configuration */}
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                <CreditCard className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">
+                  6. Razorpay Payment Gateway
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Accept Cards, NetBanking, UPI & Wallets via Razorpay secure checkout
+                </p>
+              </div>
+            </div>
+            <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+              PCI DSS Compliant
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between p-3.5 bg-gray-50 rounded-xl border border-gray-200">
+            <div>
+              <span className="text-xs font-bold text-gray-900 block">
+                Enable Razorpay Checkout
+              </span>
+              <span className="text-[11px] text-gray-500">
+                Show Razorpay as a payment option for customers at checkout
+              </span>
+            </div>
+
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settingsForm.razorpayEnabled}
+                onChange={(e) => handleChange('razorpayEnabled', e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600" />
+            </label>
+          </div>
+
+          {settingsForm.razorpayEnabled && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">
+                    Razorpay Key ID *
+                  </label>
+                  <input
+                    type="text"
+                    value={settingsForm.razorpayKeyId || ''}
+                    onChange={(e) => handleChange('razorpayKeyId', e.target.value.trim())}
+                    placeholder="e.g. rzp_test_xxxxxxxxxx or rzp_live_xxxxxxxxxx"
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-sm font-bold text-blue-900"
+                  />
+                  <span className="text-[11px] text-gray-400 mt-1 block">
+                    Find this in your <a href="https://dashboard.razorpay.com/app/keys" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Razorpay Dashboard</a> → Settings → API Keys. Leave blank to use the built-in Sandbox Test Key.
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">
+                    Razorpay Key Secret (for reference only)
+                  </label>
+                  <input
+                    type="password"
+                    value={settingsForm.razorpayKeySecret || ''}
+                    onChange={(e) => handleChange('razorpayKeySecret', e.target.value.trim())}
+                    placeholder="e.g. xxxxxxxxxxxxxxxxxxxxxxxx"
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                  />
+                  <span className="text-[11px] text-gray-400 mt-1 block">
+                    ⚠️ The Key Secret is for backend server use only. For client-side checkout, only the Key ID is needed.
+                  </span>
+                </div>
+              </div>
+
+              {/* Test Gateway Button */}
+              <div className="pt-2 flex flex-wrap items-center justify-between gap-3 bg-blue-50/60 p-3.5 rounded-xl border border-blue-100">
+                <div>
+                  <span className="text-xs font-bold text-blue-950 block">
+                    Test Razorpay Checkout Flow
+                  </span>
+                  <span className="text-[11px] text-blue-700">
+                    Launch a live ₹1 test payment modal to verify your key and checkout pop-up
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleTestRazorpay}
+                  className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all active:scale-95"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Test Razorpay (₹1)</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-blue-700 flex-shrink-0 mt-0.5" />
+            <div>
+              <strong className="text-blue-950">How it works:</strong> Razorpay automatically verifies customer payments in real-time (Google Pay, PhonePe, Paytm, Cards, NetBanking). Funds settle directly into your linked bank account. Orders are marked <strong>Paid</strong> immediately upon bank capture. <a href="https://razorpay.com/docs/" target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:underline font-semibold">Learn more →</a>
+            </div>
+          </div>
+        </div>
+
+        {/* Section 7: Multi-Device Catalog Sync & Backup */}
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <Cloud className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">
+                  7. Multi-Device Catalog Cloud Sync & Backup
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Ensure products added from any laptop or phone appear on all customer devices
+                </p>
+              </div>
+            </div>
+            <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              Auto-Sync Active
+            </span>
+          </div>
+
+          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 space-y-2">
+            <p className="font-semibold text-slate-900 flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              How Multi-Device Availability Works:
+            </p>
+            <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-600">
+              <li><strong>Fresh Devices:</strong> Any mobile phone or laptop visiting the site automatically loads all starter products instantly.</li>
+              <li><strong>Cloud Sync:</strong> Whenever you add, edit, or delete a product in this Owner Portal, the changes are automatically synchronized to the cloud repository.</li>
+              <li><strong>Offline / Manual Backup:</strong> You can export your entire product catalog as a JSON backup or import it onto any device with 1 click.</li>
+            </ul>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 pt-1">
+            <button
+              type="button"
+              onClick={exportCatalog}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl font-bold text-xs transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              <span>Export Catalog (JSON)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-xl font-bold text-xs transition-colors"
+            >
+              <Upload className="w-4 h-4" />
+              <span>Import Catalog (JSON)</span>
+            </button>
+
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImportFile}
+              accept=".json"
+              className="hidden"
+            />
           </div>
         </div>
 

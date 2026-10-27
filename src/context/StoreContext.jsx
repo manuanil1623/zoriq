@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { INITIAL_PRODUCTS, STARTER_PRODUCTS, DEFAULT_SELLER_SETTINGS, SAMPLE_ORDERS } from '../data/initialData';
+import { fetchCloudProducts, pushCloudProducts, exportCatalogToJson, parseCatalogFromJson } from '../services/cloudSync';
 
 const StoreContext = createContext();
 
@@ -38,19 +39,38 @@ export function StoreProvider({ children }) {
 
   const [isAdminLoginModalOpen, setIsAdminLoginModalOpen] = useState(false);
 
-  // 2. Products State with LocalStorage
+  // 2. Products State with LocalStorage & Starter Catalog Fallback
   const [products, setProducts] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
-      if (!saved) return [];
+      if (!saved) return INITIAL_PRODUCTS;
       const parsed = JSON.parse(saved);
       // Remove all demo products (prod-1 through prod-8)
       const demoIds = new Set(['prod-1', 'prod-2', 'prod-3', 'prod-4', 'prod-5', 'prod-6', 'prod-7', 'prod-8']);
-      return parsed.filter((p) => !demoIds.has(p.id));
+      const filtered = parsed.filter((p) => !demoIds.has(p.id));
+      return filtered.length > 0 ? filtered : INITIAL_PRODUCTS;
     } catch {
-      return [];
+      return INITIAL_PRODUCTS;
     }
   });
+
+  // Asynchronous cloud catalog sync across devices
+  useEffect(() => {
+    let isMounted = true;
+    fetchCloudProducts().then((cloudProds) => {
+      if (isMounted && cloudProds && Array.isArray(cloudProds) && cloudProds.length > 0) {
+        setProducts((localProds) => {
+          const existingIds = new Set(localProds.map((p) => p.id));
+          const newFromCloud = cloudProds.filter((p) => !existingIds.has(p.id));
+          if (newFromCloud.length > 0) {
+            return [...localProds, ...newFromCloud];
+          }
+          return localProds;
+        });
+      }
+    });
+    return () => { isMounted = false; };
+  }, []);
 
   // 3. Orders State with LocalStorage
   const [orders, setOrders] = useState(() => {
@@ -290,9 +310,12 @@ export function StoreProvider({ children }) {
       shippingFee,
       total: cartTotal,
       paymentMethod, // 'UPI' | 'COD'
-      paymentStatus: paymentMethod === 'UPI' ? 'Paid' : 'Pending',
-      upiTxnId: paymentMethod === 'UPI' ? (paymentDetails.upiTxnId || `UPI/${new Date().getFullYear()}/${Math.floor(100000000000 + Math.random() * 900000000000)}`) : null,
+      paymentStatus: paymentMethod === 'RAZORPAY' ? 'Paid' : paymentMethod === 'UPI' ? 'Verification Pending' : 'Pending',
+      upiTxnId: paymentMethod === 'UPI' ? (paymentDetails.upiTxnId || null) : null,
       upiVpa: paymentMethod === 'UPI' ? paymentDetails.upiVpa || null : null,
+      razorpayPaymentId: paymentMethod === 'RAZORPAY' ? (paymentDetails.razorpayPaymentId || null) : null,
+      razorpayOrderId: paymentMethod === 'RAZORPAY' ? (paymentDetails.razorpayOrderId || null) : null,
+      razorpaySignature: paymentMethod === 'RAZORPAY' ? (paymentDetails.razorpaySignature || null) : null,
       orderStatus: 'Placed',
       trackingNumber,
     };
@@ -323,7 +346,7 @@ export function StoreProvider({ children }) {
     return newOrder;
   };
 
-  // --- Seller Actions ---
+  // --- Seller Actions with Automatic Cloud Sync ---
   const addProduct = (productData) => {
     const newId = `prod-${Date.now()}`;
     const newProduct = {
@@ -338,18 +361,21 @@ export function StoreProvider({ children }) {
       price: Number(productData.price),
       originalPrice: Number(productData.originalPrice || productData.price * 1.3),
       stock: Number(productData.stock),
-      codAvailable: productData.codAvailable !== undefined ? Boolean(productData.codAvailable) : true,
     };
 
-    setProducts((prev) => [newProduct, ...prev]);
-    addToast(`Product "${newProduct.name}" added successfully!`, 'success');
+    setProducts((prev) => {
+      const updated = [newProduct, ...prev];
+      pushCloudProducts(updated);
+      return updated;
+    });
+    addToast(`Product "${newProduct.name}" added and synced!`, 'success');
   };
 
   const updateProduct = (productId, updatedData) => {
-    setProducts((prev) =>
-      prev.map((prod) => {
+    setProducts((prev) => {
+      const updated = prev.map((prod) => {
         if (prod.id === productId) {
-          const updated = {
+          return {
             ...prod,
             ...updatedData,
             price: Number(updatedData.price),
@@ -361,17 +387,18 @@ export function StoreProvider({ children }) {
               ? updatedData.features
               : (updatedData.features || '').split('\n').filter(Boolean),
           };
-          return updated;
         }
         return prod;
-      })
-    );
-    addToast('Product updated successfully!', 'success');
+      });
+      pushCloudProducts(updated);
+      return updated;
+    });
+    addToast('Product updated and synced!', 'success');
   };
 
   const toggleProductCod = (productId) => {
-    setProducts((prev) =>
-      prev.map((prod) => {
+    setProducts((prev) => {
+      const updated = prev.map((prod) => {
         if (prod.id === productId) {
           const current = prod.codAvailable !== false;
           const next = !current;
@@ -382,16 +409,40 @@ export function StoreProvider({ children }) {
           };
         }
         return prod;
-      })
-    );
+      });
+      pushCloudProducts(updated);
+      return updated;
+    });
   };
 
   const deleteProduct = (productId) => {
     const prod = products.find((p) => p.id === productId);
-    setProducts((prev) => prev.filter((p) => p.id !== productId));
+    setProducts((prev) => {
+      const updated = prev.filter((p) => p.id !== productId);
+      pushCloudProducts(updated);
+      return updated;
+    });
     // also remove from cart if present
     setCart((prev) => prev.filter((item) => item.id !== productId));
     addToast(`Product "${prod?.name || 'Item'}" deleted.`, 'info');
+  };
+
+  const exportCatalog = () => {
+    exportCatalogToJson(products, sellerSettings);
+    addToast('Catalog JSON downloaded! You can import this file on any device.', 'success');
+  };
+
+  const importCatalog = async (file) => {
+    try {
+      const imported = await parseCatalogFromJson(file);
+      if (imported && imported.length > 0) {
+        setProducts(imported);
+        pushCloudProducts(imported);
+        addToast(`Successfully imported ${imported.length} products to this store!`, 'success');
+      }
+    } catch (err) {
+      addToast(err.message || 'Failed to import catalog', 'error');
+    }
   };
 
   const toggleProductStock = (productId) => {
@@ -426,6 +477,24 @@ export function StoreProvider({ children }) {
       })
     );
     addToast(`Order #${orderId} marked as ${newStatus}`, 'success');
+  };
+
+  const updatePaymentStatus = (orderId, newPaymentStatus) => {
+    setOrders((prev) =>
+      prev.map((ord) => {
+        if (ord.id === orderId) {
+          const updated = { ...ord, paymentStatus: newPaymentStatus };
+          if (newPaymentStatus === 'Paid' && ord.orderStatus === 'Placed') {
+            updated.orderStatus = 'Confirmed';
+          } else if (newPaymentStatus === 'Failed') {
+            updated.orderStatus = 'Cancelled';
+          }
+          return updated;
+        }
+        return ord;
+      })
+    );
+    addToast(`Order #${orderId} payment marked as "${newPaymentStatus}"`, 'info');
   };
 
   const updateSellerSettings = (newSettings) => {
@@ -545,6 +614,7 @@ export function StoreProvider({ children }) {
         placeOrder,
         orders,
         updateOrderStatus,
+        updatePaymentStatus,
         isMyOrdersOpen,
         setIsMyOrdersOpen,
         selectedInvoice,
@@ -558,6 +628,8 @@ export function StoreProvider({ children }) {
         productToEdit,
         setProductToEdit,
         resetAllDataToDefault,
+        exportCatalog,
+        importCatalog,
 
         // Filter & Search
         searchQuery,

@@ -14,11 +14,14 @@ import {
   Search,
   Filter,
   ArrowRight,
-  ChevronDown
+  ChevronDown,
+  Clock,
+  X,
+  AlertTriangle
 } from 'lucide-react';
 
 export default function OrdersManager() {
-  const { orders, updateOrderStatus, setSelectedInvoice } = useStore();
+  const { orders, updateOrderStatus, updatePaymentStatus, setSelectedInvoice } = useStore();
 
   const [statusFilter, setStatusFilter] = useState('all');
   const [paymentFilter, setPaymentFilter] = useState('all');
@@ -26,7 +29,11 @@ export default function OrdersManager() {
 
   const filteredOrders = orders.filter((order) => {
     const matchesStatus = statusFilter === 'all' || order.orderStatus === statusFilter;
-    const matchesPayment = paymentFilter === 'all' || order.paymentMethod === paymentFilter;
+    const matchesPayment =
+      paymentFilter === 'all' ||
+      (paymentFilter === 'pending-verification'
+        ? order.paymentStatus === 'Verification Pending'
+        : order.paymentMethod === paymentFilter);
     const matchesSearch =
       order.id.toLowerCase().includes(search.toLowerCase()) ||
       order.customer.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -108,9 +115,10 @@ export default function OrdersManager() {
           <select
             value={paymentFilter}
             onChange={(e) => setPaymentFilter(e.target.value)}
-            className="w-full sm:w-auto bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-xs font-medium text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            className="w-full sm:w-auto bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-xs font-medium text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
           >
             <option value="all">All Payment Methods</option>
+            <option value="pending-verification">⏳ Pending UPI Verification</option>
             <option value="UPI">UPI Payments</option>
             <option value="COD">Cash on Delivery</option>
           </select>
@@ -167,21 +175,35 @@ export default function OrdersManager() {
                 <div className="flex items-center gap-3 text-right">
                   <div>
                     <span
-                      className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        order.paymentMethod === 'UPI'
+                      className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full ${
+                        order.paymentStatus === 'Verification Pending'
+                          ? 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse'
+                          : order.paymentStatus === 'Paid'
                           ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-amber-100 text-amber-800'
+                          : order.paymentStatus === 'Failed'
+                          ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                          : 'bg-slate-100 text-slate-800'
                       }`}
                     >
-                      {order.paymentMethod === 'UPI' ? (
+                      {order.paymentStatus === 'Verification Pending' ? (
                         <>
-                          <CreditCard className="w-3 h-3" />
-                          <span>UPI Verified ({order.paymentStatus})</span>
+                          <Clock className="w-3 h-3 text-amber-700" />
+                          <span>Pending UPI Verification</span>
+                        </>
+                      ) : order.paymentStatus === 'Paid' ? (
+                        <>
+                          <CheckCircle className="w-3 h-3 text-emerald-600" />
+                          <span>{order.paymentMethod === 'UPI' ? 'UPI Paid (Verified)' : 'COD Paid'}</span>
+                        </>
+                      ) : order.paymentStatus === 'Failed' ? (
+                        <>
+                          <X className="w-3 h-3 text-rose-600" />
+                          <span>Payment Rejected</span>
                         </>
                       ) : (
                         <>
                           <Banknote className="w-3 h-3" />
-                          <span>COD ({order.paymentStatus})</span>
+                          <span>COD (Pending)</span>
                         </>
                       )}
                     </span>
@@ -192,13 +214,52 @@ export default function OrdersManager() {
 
                   <button
                     onClick={() => setSelectedInvoice(order)}
-                    className="p-2 text-indigo-600 hover:bg-indigo-50 border border-indigo-200 rounded-xl transition-colors"
+                    className="p-2 text-indigo-600 hover:bg-indigo-50 border border-indigo-200 rounded-xl transition-colors cursor-pointer"
                     title="View & Print Invoice"
                   >
                     <FileText className="w-4 h-4" />
                   </button>
                 </div>
               </div>
+
+              {/* Prominent Verification Action Box for Seller */}
+              {order.paymentStatus === 'Verification Pending' && (
+                <div className="my-3 p-3.5 bg-amber-50/90 border-2 border-amber-300 rounded-2xl text-xs space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 font-bold text-amber-950">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                      <span>Action Required: Verify UPI Payment Before Dispatching</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 font-mono text-[11px] bg-white px-2.5 py-1 rounded-lg border border-amber-300 font-bold text-amber-900">
+                      <span>Customer UTR:</span>
+                      <span className="text-indigo-900 select-all font-extrabold">{order.upiTxnId || 'None'}</span>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-amber-900 leading-relaxed">
+                    Customer <strong>{order.customer.name}</strong> placed this order for <strong>₹{order.total?.toLocaleString('en-IN')}</strong> using UPI. Please check your Google Pay / PhonePe app or bank statement for UTR <strong>{order.upiTxnId}</strong> to ensure funds arrived.
+                  </p>
+
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => updatePaymentStatus(order.id, 'Paid')}
+                      className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                    >
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      <span>Payment Received (Approve & Confirm Order)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updatePaymentStatus(order.id, 'Failed')}
+                      className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      <span>Payment Not Received (Reject Order)</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Middle Grid: Customer Details & Ordered Line Items */}
               <div className="grid grid-cols-1 md:grid-cols-12 gap-4 py-3.5 text-xs">
