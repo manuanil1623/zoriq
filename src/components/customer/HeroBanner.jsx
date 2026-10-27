@@ -22,12 +22,12 @@ export default function HeroBanner() {
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white leading-tight">
             Curated Tech & Lifestyle Essentials. <br />
             <span className="bg-gradient-to-r from-amber-300 via-amber-200 to-yellow-400 bg-clip-text text-transparent">
-              Pay via UPI or Cash on Delivery.
+              Pay via Razorpay or Cash on Delivery.
             </span>
           </h1>
 
           <p className="text-sm sm:text-base text-gray-300 max-w-xl leading-relaxed">
-            Experience lightning-fast payments with zero transaction fees via Google Pay, PhonePe, Paytm, or choose stress-free Cash on Delivery directly to your doorstep.
+            Experience lightning-fast payments with verified bank settlement via Razorpay (UPI, Google Pay, PhonePe, Cards, NetBanking), or choose stress-free Cash on Delivery directly to your doorstep.
           </p>
 
           <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -53,9 +53,9 @@ export default function HeroBanner() {
             <div className="w-9 h-9 rounded-xl bg-amber-400/20 text-amber-300 flex items-center justify-center mb-3">
               <Zap className="w-5 h-5" />
             </div>
-            <h2 className="text-sm font-semibold text-white">Instant UPI</h2>
+            <h2 className="text-sm font-semibold text-white">Razorpay Online</h2>
             <p className="text-xs text-gray-300 mt-1">
-              GPay, PhonePe, Paytm QR code with ₹50 extra discount.
+              UPI, Cards & NetBanking with instant automated bank verification.
             </p>
           </div>
 

@@ -129,10 +129,10 @@ export default function CustomerStorefront() {
                 <span className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">
                   ₹
                 </span>
-                <span className="font-bold text-gray-900 text-sm">UPI & QR Instant Pay</span>
+                <span className="font-bold text-gray-900 text-sm">Razorpay Online</span>
               </div>
               <p className="text-xs text-gray-500">
-                Direct bank settlement via PhonePe, Google Pay, Paytm, and BHIM QR.
+                Verified instant bank payment via UPI, Cards, NetBanking, and Wallets.
               </p>
             </div>
 

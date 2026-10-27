@@ -23,7 +23,7 @@ export const fetchCloudStore = async () => {
 
     if (res.ok) {
       const data = await res.json();
-      if (data && Array.isArray(data.products) && data.products.length > 0) {
+      if (data && Array.isArray(data.products)) {
         return {
           products: data.products,
           sellerSettings: data.sellerSettings || null,
@@ -49,7 +49,7 @@ export const fetchCloudStore = async () => {
 
     if (res.ok) {
       const data = await res.json();
-      if (data && Array.isArray(data.products) && data.products.length > 0) {
+      if (data && Array.isArray(data.products)) {
         return {
           products: data.products,
           sellerSettings: data.sellerSettings || null,

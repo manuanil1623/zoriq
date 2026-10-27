@@ -32,7 +32,7 @@ export default function SellerDashboard() {
     return order.orderStatus !== 'Cancelled' ? sum + order.total : sum;
   }, 0);
 
-  const upiOrders = orders.filter((o) => o.paymentMethod === 'UPI' && o.orderStatus !== 'Cancelled');
+  const upiOrders = orders.filter((o) => (o.paymentMethod === 'RAZORPAY' || o.paymentMethod === 'UPI') && o.orderStatus !== 'Cancelled');
   const codOrders = orders.filter((o) => o.paymentMethod === 'COD' && o.orderStatus !== 'Cancelled');
 
   const upiRevenue = upiOrders.reduce((sum, o) => sum + o.total, 0);
@@ -108,22 +108,22 @@ export default function SellerDashboard() {
           </div>
         </div>
 
-        {/* Metric 2: UPI vs COD Ratio */}
+        {/* Metric 2: Razorpay vs COD Ratio */}
         <div className="bg-white p-5 rounded-2xl border border-gray-200/90 shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500">UPI Online vs COD</span>
+            <span className="text-xs font-semibold text-gray-500">Razorpay vs COD</span>
             <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
               <CreditCard className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-3">
             <div className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <span className="text-indigo-600">{upiOrders.length} UPI</span>
+              <span className="text-indigo-600">{upiOrders.length} Online</span>
               <span className="text-gray-300">/</span>
               <span className="text-amber-600">{codOrders.length} COD</span>
             </div>
             <span className="text-[11px] text-gray-500 mt-1 block">
-              ₹{upiRevenue.toLocaleString('en-IN')} direct UPI inflow
+              ₹{upiRevenue.toLocaleString('en-IN')} online inflow
             </span>
           </div>
         </div>

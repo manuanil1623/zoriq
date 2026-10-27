@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { INITIAL_PRODUCTS, STARTER_PRODUCTS, DEFAULT_SELLER_SETTINGS, SAMPLE_ORDERS } from '../data/initialData';
+import { DEFAULT_SELLER_SETTINGS } from '../data/initialData';
 import { fetchCloudStore, pushCloudStore, exportCatalogToJson, parseCatalogFromJson } from '../services/cloudSync';
 
 const StoreContext = createContext();
@@ -11,11 +11,44 @@ const STORAGE_KEYS = {
   CART: 'nexmart_cart_v1',
 };
 
-// Immediate cleanup of any legacy demo orders stored in browser
+// Precise identification of demo items to ensure real user items are never filtered
+const DEMO_PRODUCT_IDS = new Set([
+  'prod-1', 'prod-2', 'prod-3', 'prod-4', 'prod-5', 'prod-6', 'prod-7', 'prod-8'
+]);
+
+const isDemoProduct = (p) => {
+  if (!p) return false;
+  const id = String(p.id || '');
+  if (DEMO_PRODUCT_IDS.has(id)) return true;
+  if (/^prod-[1-8]$/.test(id)) return true;
+  if (id.startsWith('starter-')) return true;
+  const name = String(p.name || '').toLowerCase();
+  if (
+    name.includes('acousticpro') ||
+    name.includes('pulsefit') ||
+    name.includes('hypercharge') ||
+    name.includes('aerostride') ||
+    name.includes('artisan glass') ||
+    name.includes('heritage full-grain')
+  ) {
+    return true;
+  }
+  return false;
+};
+
+// Immediate cleanup of any legacy demo orders and products stored in browser
 try {
   localStorage.removeItem('nexmart_orders_v1');
   localStorage.removeItem('nexmart_orders_v2');
   localStorage.removeItem('nexmart_live_orders');
+  const storedProds = localStorage.getItem('nexmart_products_v2');
+  if (storedProds) {
+    const parsed = JSON.parse(storedProds);
+    if (Array.isArray(parsed)) {
+      const cleaned = parsed.filter((p) => !isDemoProduct(p));
+      localStorage.setItem('nexmart_products_v2', JSON.stringify(cleaned));
+    }
+  }
 } catch {}
 
 export function StoreProvider({ children }) {
@@ -39,18 +72,16 @@ export function StoreProvider({ children }) {
 
   const [isAdminLoginModalOpen, setIsAdminLoginModalOpen] = useState(false);
 
-  // 2. Products State with LocalStorage & Starter Catalog Fallback
+  // 2. Products State with LocalStorage & Clean Empty Fallback
   const [products, setProducts] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
-      if (!saved) return INITIAL_PRODUCTS;
+      if (!saved) return [];
       const parsed = JSON.parse(saved);
-      // Remove all demo products (prod-1 through prod-8)
-      const demoIds = new Set(['prod-1', 'prod-2', 'prod-3', 'prod-4', 'prod-5', 'prod-6', 'prod-7', 'prod-8']);
-      const filtered = parsed.filter((p) => !demoIds.has(p.id));
-      return filtered.length > 0 ? filtered : INITIAL_PRODUCTS;
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((p) => !isDemoProduct(p));
     } catch {
-      return INITIAL_PRODUCTS;
+      return [];
     }
   });
 
@@ -94,10 +125,11 @@ export function StoreProvider({ children }) {
       if (!cloudData) return;
 
       // 1. Sync Products: ensure any product added/updated/deleted on laptop shows on mobile
-      if (Array.isArray(cloudData.products) && cloudData.products.length > 0) {
-        setProducts(cloudData.products);
+      if (Array.isArray(cloudData.products)) {
+        const filtered = cloudData.products.filter((p) => !isDemoProduct(p));
+        setProducts(filtered);
         try {
-          localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(cloudData.products));
+          localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(filtered));
         } catch {}
       }
 
@@ -398,7 +430,7 @@ export function StoreProvider({ children }) {
 
   // --- Seller Actions with Automatic Cloud Sync ---
   const addProduct = (productData) => {
-    const newId = `prod-${Date.now()}`;
+    const newId = `product-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const newProduct = {
       id: newId,
       sku: productData.sku || `SKU-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -552,8 +584,8 @@ export function StoreProvider({ children }) {
   };
 
   const resetAllDataToDefault = () => {
-    setProducts(INITIAL_PRODUCTS);
-    setOrders(SAMPLE_ORDERS);
+    setProducts([]);
+    setOrders([]);
     setSellerSettings(DEFAULT_SELLER_SETTINGS);
     setCart([]);
     setCoupon(null);
@@ -561,17 +593,17 @@ export function StoreProvider({ children }) {
     localStorage.removeItem(STORAGE_KEYS.ORDERS);
     localStorage.removeItem(STORAGE_KEYS.SETTINGS);
     localStorage.removeItem(STORAGE_KEYS.CART);
+    pushCloudStore({ products: [], sellerSettings: DEFAULT_SELLER_SETTINGS, orders: [] });
     addToast('Store reset to clean defaults', 'info');
   };
 
   const loadStarterProducts = () => {
-    setProducts(STARTER_PRODUCTS);
+    setProducts([]);
     try {
-      localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(STARTER_PRODUCTS));
+      localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify([]));
     } catch (e) {
-      console.error('Error saving starter products:', e);
+      console.error('Error clearing products:', e);
     }
-    addToast('Loaded starter catalog with 6 products!', 'success');
   };
 
   // --- Admin Security ---
