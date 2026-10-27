@@ -161,8 +161,8 @@ export const DEFAULT_SELLER_SETTINGS = {
   contactPhone: '',
   adminPin: '7784',
   razorpayEnabled: true,
-  razorpayKeyId: '',  // Razorpay Key ID (starts with rzp_test_ or rzp_live_)
-  razorpayKeySecret: '',  // Not used client-side, but stored for reference
+  razorpayKeyId: 'rzp_live_TstUZQzK6D5kHP', // Razorpay Live API Key
+  razorpayKeySecret: '', // Reference only
 };
 
 export const SAMPLE_ORDERS = [];

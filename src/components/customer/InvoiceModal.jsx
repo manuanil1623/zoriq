@@ -99,9 +99,9 @@ export default function InvoiceModal() {
                 <p>
                   Payment Mode:{' '}
                   <strong className={`px-1.5 py-0.5 rounded text-[11px] ${
-                    order.paymentMethod === 'UPI' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                    order.paymentMethod === 'RAZORPAY' || order.paymentMethod === 'UPI' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                   }`}>
-                    {order.paymentMethod === 'UPI' ? 'UPI Online' : 'Cash on Delivery (COD)'}
+                    {order.paymentMethod === 'RAZORPAY' ? 'Razorpay (Cards/UPI/NetBanking)' : order.paymentMethod === 'UPI' ? 'UPI Online' : 'Cash on Delivery (COD)'}
                   </strong>
                 </p>
                 <p>
@@ -110,7 +110,12 @@ export default function InvoiceModal() {
                     {order.paymentStatus}
                   </strong>
                 </p>
-                {order.upiTxnId && (
+                {order.razorpayPaymentId && (
+                  <p className="font-mono text-[11px] text-gray-700">
+                    Payment ID: {order.razorpayPaymentId}
+                  </p>
+                )}
+                {order.upiTxnId && !order.razorpayPaymentId && (
                   <p className="font-mono text-[11px] text-gray-700">
                     UPI Ref: {order.upiTxnId}
                   </p>

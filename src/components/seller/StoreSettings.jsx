@@ -2,58 +2,61 @@ import React, { useState, useRef } from 'react';
 import { useStore } from '../../context/StoreContext';
 import { QRCodeSVG } from 'qrcode.react';
 import {
-  Settings,
   CreditCard,
-  QrCode,
   Banknote,
-  Truck,
   RotateCcw,
   Check,
   Store,
-  Building2,
-  Copy,
-  ShieldCheck,
-  AlertCircle,
-  Sparkles,
   Lock,
   Download,
   Upload,
   Cloud,
-  ExternalLink
+  Sparkles,
+  ShieldCheck,
+  Smartphone,
+  Copy
 } from 'lucide-react';
 
 export default function StoreSettings() {
-  const { sellerSettings, updateSellerSettings, resetAllDataToDefault, exportCatalog, importCatalog } = useStore();
+  const {
+    sellerSettings,
+    updateSellerSettings,
+    resetAllDataToDefault,
+    exportCatalog,
+    importCatalog,
+    products,
+    addToast
+  } = useStore();
 
-  const [settingsForm, setSettingsForm] = useState({ ...sellerSettings });
-  const [copiedField, setCopiedField] = useState(null);
+  const [settingsForm, setSettingsForm] = useState({
+    ...sellerSettings,
+    razorpayKeyId: sellerSettings.razorpayKeyId || 'rzp_live_TstUZQzK6D5kHP'
+  });
+  const [showPhoneSyncModal, setShowPhoneSyncModal] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const fileInputRef = useRef(null);
 
   const handleChange = (key, value) => {
     setSettingsForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleCopy = (field, text) => {
-    if (!text) return;
-    navigator.clipboard?.writeText(text);
-    setCopiedField(field);
-    setTimeout(() => setCopiedField(null), 2000);
-  };
-
   const handleSave = (e) => {
     e.preventDefault();
     updateSellerSettings(settingsForm);
+    if (addToast) {
+      addToast('Store settings saved successfully!', 'success');
+    }
   };
 
   const handleResetData = () => {
-    if (window.confirm('Are you sure you want to clear all orders and restore default settings?')) {
+    if (window.confirm('Are you sure you want to clear stored data and restore default settings?')) {
       resetAllDataToDefault();
       setSettingsForm(sellerSettings);
     }
   };
 
   const handleTestRazorpay = () => {
-    const key = settingsForm.razorpayKeyId?.trim() || 'rzp_test_1DP5mmOlF5G5ag';
+    const key = settingsForm.razorpayKeyId?.trim() || 'rzp_live_TstUZQzK6D5kHP';
     if (!window.Razorpay) {
       alert('Razorpay SDK is loading. Please check your internet connection.');
       return;
@@ -62,20 +65,26 @@ export default function StoreSettings() {
       key: key,
       amount: 100, // ₹1.00 in paise
       currency: 'INR',
-      name: settingsForm.storeName || 'Zoriq Store',
-      description: 'Razorpay Gateway Test Mode (₹1.00)',
+      name: settingsForm.storeName || 'ZORIQ',
+      description: 'Razorpay Gateway Live Test (₹1.00)',
+      image: '/zoriq-logo.jpg',
       handler: function (response) {
-        alert(`🎉 Razorpay Test Payment Successful!\nPayment ID: ${response.razorpay_payment_id}\n\nYour Razorpay integration is 100% active and working!`);
+        alert(
+          `🎉 Razorpay Test Payment Successful!\nPayment ID: ${response.razorpay_payment_id}\n\nYour Razorpay live integration is 100% active and working!`
+        );
       },
       prefill: {
         name: 'Store Owner',
         email: 'seller@zoriq.in',
-        contact: '9999999999'
+        contact: '9999999999',
       },
-      theme: { color: '#4f46e5' }
+      theme: { color: '#4F46E5' },
     };
     try {
       const rzp = new window.Razorpay(options);
+      rzp.on('payment.failed', function (resp) {
+        alert(`Razorpay Test Failed: ${resp.error?.description || 'Declined'}`);
+      });
       rzp.open();
     } catch (err) {
       alert(`Razorpay Error: ${err.message || 'Failed to open Razorpay modal'}`);
@@ -98,12 +107,15 @@ export default function StoreSettings() {
     e.target.value = '';
   };
 
-  // QR preview link
-  const testUpiLink = `upi://pay?pa=${encodeURIComponent(
-    settingsForm.sellerUpiId || 'yourname@upi'
-  )}&pn=${encodeURIComponent(
-    settingsForm.merchantName || settingsForm.storeName || 'Store'
-  )}&am=1.00&cu=INR&tn=Store_Verification`;
+  // Generate mobile sync link
+  const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://zoriq.vercel.app';
+  const mobileSyncUrl = `${currentOrigin}/?sync=true`;
+
+  const copySyncLink = () => {
+    navigator.clipboard?.writeText(mobileSyncUrl);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
+  };
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto animate-in fade-in pb-12">
@@ -112,187 +124,134 @@ export default function StoreSettings() {
       <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center justify-between">
         <div>
           <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-            <Building2 className="w-5 h-5 text-indigo-600" />
-            <span>Store Bank & UPI Payment Configuration</span>
+            <CreditCard className="w-5 h-5 text-indigo-600" />
+            <span>Store Payments & Multi-Device Configuration</span>
           </h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            Configure your real bank account and UPI VPA so buyers' money routes directly to you
+            Configure your active Razorpay Payment Gateway, Cash on Delivery, and cross-device sync
           </p>
         </div>
 
         <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-3 py-1 rounded-full flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
-          Live Gateway
+          Razorpay Live Active
         </span>
       </div>
 
       <form onSubmit={handleSave} className="space-y-6">
         
-        {/* Section 1: UPI Gateway Configuration with Live QR Code Test */}
-        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-200 shadow-sm space-y-5">
+        {/* Section 1: Razorpay Payment Gateway */}
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-gray-100">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                <QrCode className="w-4 h-4" />
+                <CreditCard className="w-4 h-4" />
               </div>
               <div>
                 <h3 className="text-sm font-bold text-gray-900">
-                  1. UPI Payment Receiving Setup (VPA)
+                  1. Razorpay Payment Gateway (Cards, UPI, NetBanking)
                 </h3>
                 <p className="text-xs text-gray-500">
-                  Customers scanning the checkout QR code will transfer funds to this UPI account
+                  Accept Google Pay, PhonePe, Paytm, Visa, Mastercard, RuPay & NetBanking with instant bank verification
                 </p>
               </div>
             </div>
-
-            <span className="text-[11px] font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
-              Zero Merchant Fee
+            <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              Auto Verified
             </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-center">
-            
-            {/* Input fields */}
-            <div className="md:col-span-8 space-y-4 text-xs">
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1">
-                  Your UPI ID (VPA) *
-                </label>
-                <div className="relative">
+          <div className="flex items-center justify-between p-3.5 bg-gray-50 rounded-xl border border-gray-200">
+            <div>
+              <span className="text-xs font-bold text-gray-900 block">
+                Enable Razorpay Checkout
+              </span>
+              <span className="text-[11px] text-gray-500">
+                Customers will be routed through Razorpay's secure checkout modal
+              </span>
+            </div>
+
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settingsForm.razorpayEnabled}
+                onChange={(e) => handleChange('razorpayEnabled', e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600" />
+            </label>
+          </div>
+
+          {settingsForm.razorpayEnabled && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">
+                    Razorpay Key ID *
+                  </label>
                   <input
                     type="text"
-                    value={settingsForm.sellerUpiId}
-                    onChange={(e) => handleChange('sellerUpiId', e.target.value)}
-                    placeholder="e.g. yourname@oksbi or 9876543210@paytm"
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono text-sm font-bold text-indigo-900"
+                    value={settingsForm.razorpayKeyId || ''}
+                    onChange={(e) => handleChange('razorpayKeyId', e.target.value.trim())}
+                    placeholder="rzp_live_TstUZQzK6D5kHP"
+                    className="w-full px-3 py-2.5 bg-indigo-50/30 border border-indigo-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 font-mono text-xs sm:text-sm font-bold text-indigo-900"
                     required
                   />
+                  <span className="text-[11px] text-gray-400 mt-1 block">
+                    Your active live key is registered. You can manage keys anytime in your <a href="https://dashboard.razorpay.com/app/keys" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">Razorpay Dashboard</a>.
+                  </span>
                 </div>
-                <span className="text-[11px] text-gray-400 mt-1 block">
-                  Find this in your Google Pay, PhonePe, Paytm, or BHIM app profile (e.g., <code>yourname@oksbi</code>, <code>9876543210@ybl</code>).
-                </span>
+
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">
+                    Razorpay Key Secret (optional reference)
+                  </label>
+                  <input
+                    type="password"
+                    value={settingsForm.razorpayKeySecret || ''}
+                    onChange={(e) => handleChange('razorpayKeySecret', e.target.value.trim())}
+                    placeholder="••••••••••••••••••••••••"
+                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
+                  />
+                  <span className="text-[11px] text-gray-400 mt-1 block">
+                    Key Secret is for backend server integrations. For client-side checkout, only Key ID is needed.
+                  </span>
+                </div>
               </div>
 
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1">
-                  Payee / Account Holder Name *
-                </label>
-                <input
-                  type="text"
-                  value={settingsForm.merchantName}
-                  onChange={(e) => handleChange('merchantName', e.target.value)}
-                  placeholder="e.g. Rahul Sharma or Sharma Enterprise"
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-xs"
-                  required
-                />
-                <span className="text-[11px] text-gray-400 mt-1 block">
-                  Official name as registered with your bank/UPI ID (shown on buyer's payment screen).
-                </span>
+              {/* Test Razorpay Flow Button */}
+              <div className="p-3.5 bg-indigo-50/70 border border-indigo-100 rounded-xl flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <span className="text-xs font-bold text-indigo-950 block">
+                    Test Razorpay Checkout Flow
+                  </span>
+                  <span className="text-[11px] text-indigo-700">
+                    Launch a live ₹1 test payment modal to verify your key and checkout pop-up
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleTestRazorpay}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all active:scale-95"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Test Razorpay (₹1)</span>
+                </button>
               </div>
             </div>
+          )}
 
-            {/* Live QR Preview */}
-            <div className="md:col-span-4 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-center flex flex-col items-center">
-              <span className="text-[11px] font-bold text-gray-700 mb-2">
-                Live QR Code Preview:
-              </span>
-              <div className="p-2.5 bg-white rounded-xl shadow-xs border border-gray-200">
-                <QRCodeSVG
-                  value={testUpiLink}
-                  size={120}
-                  level="M"
-                />
-              </div>
-              <span className="text-[10px] text-emerald-700 font-mono mt-2 font-semibold">
-                {settingsForm.sellerUpiId || 'name@upi'}
-              </span>
-              <span className="text-[9px] text-gray-400">
-                Test scan with mobile camera to verify recipient
-              </span>
-            </div>
-
-          </div>
-
-          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2">
-            <ShieldCheck className="w-4 h-4 text-amber-700 flex-shrink-0 mt-0.5" />
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 flex items-start gap-2">
+            <ShieldCheck className="w-4 h-4 text-emerald-700 flex-shrink-0 mt-0.5" />
             <div>
-              <strong className="text-amber-950">Security Notice:</strong> Only enter your public UPI ID (VPA) and Account Holder Name. <strong>NEVER</strong> share or enter your UPI PIN, password, or OTP.
+              <strong className="text-emerald-950">Bank-Guaranteed Verification:</strong> Unlike manual QR codes or screenshots, Razorpay automatically verifies customer payments directly with the issuing bank. If payment is cancelled or declined, no order is placed. Once payment succeeds, funds settle into your bank account.
             </div>
           </div>
         </div>
 
-        {/* Section 2: Direct Bank Account Transfer Details (IMPS / NEFT) */}
-        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
-          <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
-            <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
-              <Building2 className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-gray-900">
-                2. Direct Bank Account Details (Optional for IMPS/NEFT)
-              </h3>
-              <p className="text-xs text-gray-500">
-                Shown to customers who prefer wire transfer / net banking, and printed on official tax invoices
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-            <div>
-              <label className="block font-semibold text-gray-700 mb-1">
-                Bank Name
-              </label>
-              <input
-                type="text"
-                value={settingsForm.bankName || ''}
-                onChange={(e) => handleChange('bankName', e.target.value)}
-                placeholder="e.g. State Bank of India, HDFC Bank, ICICI"
-                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              />
-            </div>
-
-            <div>
-              <label className="block font-semibold text-gray-700 mb-1">
-                Account Holder Name
-              </label>
-              <input
-                type="text"
-                value={settingsForm.accountHolderName || ''}
-                onChange={(e) => handleChange('accountHolderName', e.target.value)}
-                placeholder="e.g. Rahul Sharma"
-                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              />
-            </div>
-
-            <div>
-              <label className="block font-semibold text-gray-700 mb-1">
-                Bank Account Number
-              </label>
-              <input
-                type="text"
-                value={settingsForm.bankAccountNumber || ''}
-                onChange={(e) => handleChange('bankAccountNumber', e.target.value)}
-                placeholder="e.g. 50100234891023"
-                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
-              />
-            </div>
-
-            <div>
-              <label className="block font-semibold text-gray-700 mb-1">
-                Bank IFSC Code
-              </label>
-              <input
-                type="text"
-                value={settingsForm.bankIfsc || ''}
-                onChange={(e) => handleChange('bankIfsc', e.target.value.toUpperCase())}
-                placeholder="e.g. SBIN0001234 or HDFC0001234"
-                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono uppercase"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Section 3: Cash on Delivery (COD) Rules */}
+        {/* Section 2: Cash on Delivery (COD) Settings */}
         <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
           <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
             <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
@@ -300,10 +259,10 @@ export default function StoreSettings() {
             </div>
             <div>
               <h3 className="text-sm font-bold text-gray-900">
-                3. Cash on Delivery (COD) Settings
+                2. Cash on Delivery (COD) Settings
               </h3>
               <p className="text-xs text-gray-500">
-                Enable or restrict cash payments for buyers at checkout
+                Allow customers to pay cash when package is delivered
               </p>
             </div>
           </div>
@@ -314,7 +273,7 @@ export default function StoreSettings() {
                 Accept Cash on Delivery Orders
               </span>
               <span className="text-[11px] text-gray-500">
-                Allow customers to select COD and verify orders with anti-bot security code
+                Orders are verified with a 4-digit anti-bot security code to prevent spam
               </span>
             </div>
 
@@ -348,7 +307,7 @@ export default function StoreSettings() {
           )}
         </div>
 
-        {/* Section 4: Storefront Identity & Contact */}
+        {/* Section 3: Storefront Identity & Shipping Rules */}
         <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
           <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
             <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
@@ -356,10 +315,10 @@ export default function StoreSettings() {
             </div>
             <div>
               <h3 className="text-sm font-bold text-gray-900">
-                4. Store Identity & Shipping Rules
+                3. Store Identity & Shipping Rules
               </h3>
               <p className="text-xs text-gray-500">
-                Brand name, support email, and free shipping limits
+                Display name, support email, and shipping fees
               </p>
             </div>
           </div>
@@ -403,7 +362,7 @@ export default function StoreSettings() {
           </div>
         </div>
 
-        {/* Section 5: Owner Access Security PIN */}
+        {/* Section 4: Owner Portal Security PIN */}
         <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
           <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
             <div className="w-8 h-8 rounded-lg bg-slate-900 text-amber-300 flex items-center justify-center">
@@ -411,10 +370,10 @@ export default function StoreSettings() {
             </div>
             <div>
               <h3 className="text-sm font-bold text-gray-900">
-                5. Admin Portal Security PIN
+                4. Admin Security PIN
               </h3>
               <p className="text-xs text-gray-500">
-                The secret PIN used to unlock this Owner Portal (keeps customers out)
+                Secret PIN used to unlock this Owner Portal
               </p>
             </div>
           </div>
@@ -429,126 +388,17 @@ export default function StoreSettings() {
                 maxLength={8}
                 value={settingsForm.adminPin || '7784'}
                 onChange={(e) => handleChange('adminPin', e.target.value)}
-                placeholder="e.g. 7784"
+                placeholder="7784"
                 className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono font-bold tracking-widest text-indigo-900"
               />
               <span className="text-[10px] text-gray-400 mt-1 block">
-                Your active PIN is <strong>{settingsForm.adminPin || '7784'}</strong>. You can change it anytime to keep your dashboard secure.
+                Current active PIN is <strong>{settingsForm.adminPin || '7784'}</strong>.
               </span>
             </div>
           </div>
         </div>
 
-        {/* Section 6: Razorpay Payment Gateway Configuration */}
-        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
-                <CreditCard className="w-4 h-4" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-gray-900">
-                  6. Razorpay Payment Gateway
-                </h3>
-                <p className="text-xs text-gray-500">
-                  Accept Cards, NetBanking, UPI & Wallets via Razorpay secure checkout
-                </p>
-              </div>
-            </div>
-            <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
-              PCI DSS Compliant
-            </span>
-          </div>
-
-          <div className="flex items-center justify-between p-3.5 bg-gray-50 rounded-xl border border-gray-200">
-            <div>
-              <span className="text-xs font-bold text-gray-900 block">
-                Enable Razorpay Checkout
-              </span>
-              <span className="text-[11px] text-gray-500">
-                Show Razorpay as a payment option for customers at checkout
-              </span>
-            </div>
-
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={settingsForm.razorpayEnabled}
-                onChange={(e) => handleChange('razorpayEnabled', e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600" />
-            </label>
-          </div>
-
-          {settingsForm.razorpayEnabled && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                <div>
-                  <label className="block font-semibold text-gray-700 mb-1">
-                    Razorpay Key ID *
-                  </label>
-                  <input
-                    type="text"
-                    value={settingsForm.razorpayKeyId || ''}
-                    onChange={(e) => handleChange('razorpayKeyId', e.target.value.trim())}
-                    placeholder="e.g. rzp_test_xxxxxxxxxx or rzp_live_xxxxxxxxxx"
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-sm font-bold text-blue-900"
-                  />
-                  <span className="text-[11px] text-gray-400 mt-1 block">
-                    Find this in your <a href="https://dashboard.razorpay.com/app/keys" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Razorpay Dashboard</a> → Settings → API Keys. Leave blank to use the built-in Sandbox Test Key.
-                  </span>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-gray-700 mb-1">
-                    Razorpay Key Secret (for reference only)
-                  </label>
-                  <input
-                    type="password"
-                    value={settingsForm.razorpayKeySecret || ''}
-                    onChange={(e) => handleChange('razorpayKeySecret', e.target.value.trim())}
-                    placeholder="e.g. xxxxxxxxxxxxxxxxxxxxxxxx"
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
-                  />
-                  <span className="text-[11px] text-gray-400 mt-1 block">
-                    ⚠️ The Key Secret is for backend server use only. For client-side checkout, only the Key ID is needed.
-                  </span>
-                </div>
-              </div>
-
-              {/* Test Gateway Button */}
-              <div className="pt-2 flex flex-wrap items-center justify-between gap-3 bg-blue-50/60 p-3.5 rounded-xl border border-blue-100">
-                <div>
-                  <span className="text-xs font-bold text-blue-950 block">
-                    Test Razorpay Checkout Flow
-                  </span>
-                  <span className="text-[11px] text-blue-700">
-                    Launch a live ₹1 test payment modal to verify your key and checkout pop-up
-                  </span>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleTestRazorpay}
-                  className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all active:scale-95"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Test Razorpay (₹1)</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 text-blue-700 flex-shrink-0 mt-0.5" />
-            <div>
-              <strong className="text-blue-950">How it works:</strong> Razorpay automatically verifies customer payments in real-time (Google Pay, PhonePe, Paytm, Cards, NetBanking). Funds settle directly into your linked bank account. Orders are marked <strong>Paid</strong> immediately upon bank capture. <a href="https://razorpay.com/docs/" target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:underline font-semibold">Learn more →</a>
-            </div>
-          </div>
-        </div>
-
-        {/* Section 7: Multi-Device Catalog Sync & Backup */}
+        {/* Section 5: Multi-Device Catalog Cloud Sync & Cross-Platform Updates */}
         <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-gray-100">
             <div className="flex items-center gap-2">
@@ -557,16 +407,16 @@ export default function StoreSettings() {
               </div>
               <div>
                 <h3 className="text-sm font-bold text-gray-900">
-                  7. Multi-Device Catalog Cloud Sync & Backup
+                  5. Cross-Device Catalog & Store Sync
                 </h3>
                 <p className="text-xs text-gray-500">
-                  Ensure products added from any laptop or phone appear on all customer devices
+                  Ensure products added or changed on this device appear everywhere on all customer devices
                 </p>
               </div>
             </div>
             <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              Auto-Sync Active
+              Sync Ready ({products.length} Products)
             </span>
           </div>
 
@@ -576,13 +426,23 @@ export default function StoreSettings() {
               How Multi-Device Availability Works:
             </p>
             <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-600">
-              <li><strong>Fresh Devices:</strong> Any mobile phone or laptop visiting the site automatically loads all starter products instantly.</li>
-              <li><strong>Cloud Sync:</strong> Whenever you add, edit, or delete a product in this Owner Portal, the changes are automatically synchronized to the cloud repository.</li>
-              <li><strong>Offline / Manual Backup:</strong> You can export your entire product catalog as a JSON backup or import it onto any device with 1 click.</li>
+              <li><strong>All New Devices:</strong> Every mobile phone, tablet, and laptop visiting the website loads all starter products automatically.</li>
+              <li><strong>Phone Sync (Instant):</strong> Click <strong>"📱 Sync Store to Mobile Phone"</strong> to open a QR code. Scan it with any phone camera to instantly sync all products.</li>
+              <li><strong>Backup / Export:</strong> Download your entire catalog as JSON or restore it onto any device with 1 click.</li>
             </ul>
           </div>
 
+          {/* Action Row */}
           <div className="flex flex-wrap items-center gap-3 pt-1">
+            <button
+              type="button"
+              onClick={() => setShowPhoneSyncModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl font-bold text-xs shadow-sm transition-all active:scale-95"
+            >
+              <Smartphone className="w-4 h-4" />
+              <span>📱 Sync Store to Mobile Phone</span>
+            </button>
+
             <button
               type="button"
               onClick={exportCatalog}
@@ -627,11 +487,58 @@ export default function StoreSettings() {
             className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs sm:text-sm shadow-md shadow-indigo-600/30 transition-all active:scale-95"
           >
             <Check className="w-4 h-4" />
-            <span>Save & Apply Bank Details</span>
+            <span>Save & Apply Store Settings</span>
           </button>
         </div>
 
       </form>
+
+      {/* Mobile Phone Sync Modal */}
+      {showPhoneSyncModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white max-w-sm w-full rounded-3xl p-6 text-center space-y-4 shadow-2xl border border-gray-100">
+            <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto">
+              <Smartphone className="w-6 h-6" />
+            </div>
+
+            <div>
+              <h3 className="font-bold text-base text-gray-900">
+                Sync Store with Your Phone
+              </h3>
+              <p className="text-xs text-gray-500 mt-1">
+                Scan this QR code with your mobile camera or Google Lens to load the store directly on your phone
+              </p>
+            </div>
+
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 inline-block mx-auto">
+              <QRCodeSVG
+                value={mobileSyncUrl}
+                size={180}
+                level="M"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={copySyncLink}
+                className="w-full py-2.5 px-4 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors border border-indigo-200"
+              >
+                {copiedLink ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                <span>{copiedLink ? 'Link Copied!' : 'Copy Mobile Store Link'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowPhoneSyncModal(false)}
+                className="w-full py-2 px-4 rounded-xl text-gray-600 hover:bg-gray-100 font-semibold text-xs transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

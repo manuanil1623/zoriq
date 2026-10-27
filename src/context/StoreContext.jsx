@@ -92,10 +92,13 @@ export function StoreProvider({ children }) {
       if (!saved) return DEFAULT_SELLER_SETTINGS;
       const parsed = JSON.parse(saved);
       return {
+        ...DEFAULT_SELLER_SETTINGS,
         ...parsed,
         storeName: !parsed.storeName || parsed.storeName.includes('NexMart') ? 'ZORIQ' : parsed.storeName,
         merchantName: !parsed.merchantName || parsed.merchantName.includes('NexMart') ? 'ZORIQ Official' : parsed.merchantName,
-        adminPin: parsed.adminPin === '1234' || !parsed.adminPin ? '7784' : parsed.adminPin
+        adminPin: parsed.adminPin === '1234' || !parsed.adminPin ? '7784' : parsed.adminPin,
+        razorpayKeyId: parsed.razorpayKeyId && !parsed.razorpayKeyId.startsWith('rzp_test_') ? parsed.razorpayKeyId : 'rzp_live_TstUZQzK6D5kHP',
+        razorpayEnabled: true
       };
     } catch {
       return DEFAULT_SELLER_SETTINGS;
@@ -309,14 +312,14 @@ export function StoreProvider({ children }) {
       couponApplied: coupon ? coupon.code : null,
       shippingFee,
       total: cartTotal,
-      paymentMethod, // 'UPI' | 'COD'
-      paymentStatus: paymentMethod === 'RAZORPAY' ? 'Paid' : paymentMethod === 'UPI' ? 'Verification Pending' : 'Pending',
-      upiTxnId: paymentMethod === 'UPI' ? (paymentDetails.upiTxnId || null) : null,
-      upiVpa: paymentMethod === 'UPI' ? paymentDetails.upiVpa || null : null,
+      paymentMethod, // 'RAZORPAY' | 'COD'
+      paymentStatus: paymentMethod === 'RAZORPAY' ? 'Paid' : 'Pending (COD)',
+      upiTxnId: paymentMethod === 'RAZORPAY' ? paymentDetails.razorpayPaymentId : null,
+      upiVpa: null,
       razorpayPaymentId: paymentMethod === 'RAZORPAY' ? (paymentDetails.razorpayPaymentId || null) : null,
       razorpayOrderId: paymentMethod === 'RAZORPAY' ? (paymentDetails.razorpayOrderId || null) : null,
       razorpaySignature: paymentMethod === 'RAZORPAY' ? (paymentDetails.razorpaySignature || null) : null,
-      orderStatus: 'Placed',
+      orderStatus: paymentMethod === 'RAZORPAY' ? 'Confirmed' : 'Placed',
       trackingNumber,
     };
 

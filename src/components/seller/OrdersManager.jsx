@@ -118,9 +118,9 @@ export default function OrdersManager() {
             className="w-full sm:w-auto bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-xs font-medium text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
           >
             <option value="all">All Payment Methods</option>
-            <option value="pending-verification">⏳ Pending UPI Verification</option>
-            <option value="UPI">UPI Payments</option>
+            <option value="RAZORPAY">Razorpay (Cards/UPI/NetBanking)</option>
             <option value="COD">Cash on Delivery</option>
+            <option value="pending-verification">⏳ Pending Verification</option>
           </select>
         </div>
 
@@ -188,12 +188,18 @@ export default function OrdersManager() {
                       {order.paymentStatus === 'Verification Pending' ? (
                         <>
                           <Clock className="w-3 h-3 text-amber-700" />
-                          <span>Pending UPI Verification</span>
+                          <span>Pending Verification</span>
                         </>
                       ) : order.paymentStatus === 'Paid' ? (
                         <>
                           <CheckCircle className="w-3 h-3 text-emerald-600" />
-                          <span>{order.paymentMethod === 'UPI' ? 'UPI Paid (Verified)' : 'COD Paid'}</span>
+                          <span>
+                            {order.paymentMethod === 'RAZORPAY'
+                              ? 'Paid via Razorpay'
+                              : order.paymentMethod === 'UPI'
+                              ? 'Paid via UPI'
+                              : 'COD Paid'}
+                          </span>
                         </>
                       ) : order.paymentStatus === 'Failed' ? (
                         <>
@@ -210,6 +216,11 @@ export default function OrdersManager() {
                     <span className="block font-black text-base text-gray-900 mt-0.5">
                       ₹{order.total?.toLocaleString('en-IN')}
                     </span>
+                    {order.razorpayPaymentId && (
+                      <span className="text-[10px] font-mono text-blue-700 font-bold block">
+                        {order.razorpayPaymentId}
+                      </span>
+                    )}
                   </div>
 
                   <button
