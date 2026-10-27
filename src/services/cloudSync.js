@@ -1,112 +1,108 @@
 /**
- * ZORIQ Cloud Synchronization Service
- * Enables real-time catalog & order synchronization across all customer & seller devices.
+ * ZORIQ Real-Time Universal Cloud Sync Service
+ * Synchronizes catalog, products, seller settings, and orders across all devices
+ * (Mobile Phone, Laptop, Desktop, Tablet) in real time.
  */
 
-const SYNC_STORAGE_KEY = 'zoriq_cloud_sync_config';
+// Universal persistent cloud sync endpoint
+export const CLOUD_SYNC_ENDPOINT = 'https://extendsclass.com/api/json-storage/bin/ebecffe';
 
-// Universal free cloud sync endpoint via npoint / jsonbin / mock storage
-const DEFAULT_SYNC_API = 'https://api.npoint.io/46fbaef76e3b5e4073ea';
-
-export const getCloudSyncConfig = () => {
-  try {
-    const saved = localStorage.getItem(SYNC_STORAGE_KEY);
-    if (!saved) {
-      return {
-        enabled: true,
-        endpoint: DEFAULT_SYNC_API,
-        autoSync: true,
-        lastSynced: null
-      };
-    }
-    return JSON.parse(saved);
-  } catch {
-    return { enabled: true, endpoint: DEFAULT_SYNC_API, autoSync: true, lastSynced: null };
-  }
-};
-
-export const saveCloudSyncConfig = (config) => {
-  try {
-    localStorage.setItem(SYNC_STORAGE_KEY, JSON.stringify(config));
-  } catch (e) {
-    console.error('Error saving cloud sync config:', e);
-  }
-};
+const SYNC_STORAGE_KEY = 'zoriq_cloud_sync_meta';
 
 /**
- * Fetch catalog & products from the cloud
+ * Fetch the latest live catalog, settings, and orders from the cloud
  */
-export const fetchCloudProducts = async (customEndpoint) => {
-  const config = getCloudSyncConfig();
-  const endpoint = customEndpoint || config.endpoint || DEFAULT_SYNC_API;
-
+export const fetchCloudStore = async () => {
   try {
-    const res = await fetch(endpoint, {
+    const res = await fetch(CLOUD_SYNC_ENDPOINT, {
       method: 'GET',
       headers: {
-        'Accept': 'application/json'
-      }
+        'Accept': 'application/json',
+        'Cache-Control': 'no-cache'
+      },
+      signal: AbortSignal.timeout(6000)
     });
 
     if (!res.ok) {
-      throw new Error(`Failed to fetch cloud products: HTTP ${res.status}`);
+      throw new Error(`Cloud fetch returned status ${res.status}`);
     }
 
     const data = await res.json();
     if (data && Array.isArray(data.products)) {
-      return data.products;
-    }
-    if (Array.isArray(data)) {
-      return data;
+      return {
+        products: data.products,
+        sellerSettings: data.sellerSettings || null,
+        orders: Array.isArray(data.orders) ? data.orders : [],
+        lastUpdated: data.lastUpdated || null
+      };
     }
     return null;
   } catch (error) {
-    console.warn('Cloud sync fetch notice:', error.message);
+    console.warn('Notice: Cloud sync fetch fallback to local cache:', error.message);
     return null;
   }
 };
 
 /**
- * Push products & updates to the cloud so all devices receive them
+ * Backward compatibility alias for fetchCloudProducts
  */
-export const pushCloudProducts = async (products, customEndpoint) => {
-  const config = getCloudSyncConfig();
-  const endpoint = customEndpoint || config.endpoint || DEFAULT_SYNC_API;
+export const fetchCloudProducts = async () => {
+  const store = await fetchCloudStore();
+  return store ? store.products : null;
+};
 
+/**
+ * Push updated products, settings, or orders to the cloud so all devices immediately receive them
+ */
+export const pushCloudStore = async ({ products, sellerSettings, orders }) => {
   try {
-    const res = await fetch(endpoint, {
-      method: 'POST',
+    const payload = {
+      products: products || [],
+      sellerSettings: sellerSettings || {},
+      orders: orders || [],
+      lastUpdated: new Date().toISOString()
+    };
+
+    const res = await fetch(CLOUD_SYNC_ENDPOINT, {
+      method: 'PUT',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        products,
-        updatedAt: new Date().toISOString()
-      })
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(8000)
     });
 
     if (res.ok) {
-      saveCloudSyncConfig({
-        ...config,
-        lastSynced: new Date().toISOString()
-      });
+      try {
+        localStorage.setItem(
+          SYNC_STORAGE_KEY,
+          JSON.stringify({ lastSynced: new Date().toISOString(), status: 'synced' })
+        );
+      } catch {}
       return true;
     }
     return false;
   } catch (error) {
-    console.warn('Cloud sync push notice:', error.message);
+    console.warn('Notice: Cloud sync push error:', error.message);
     return false;
   }
 };
 
 /**
- * Export catalog to a downloadable JSON file for easy 1-click transfer between devices
+ * Backward compatibility alias for pushCloudProducts
+ */
+export const pushCloudProducts = async (products) => {
+  return pushCloudStore({ products });
+};
+
+/**
+ * Export catalog to a downloadable JSON file for easy 1-click manual backup
  */
 export const exportCatalogToJson = (products, settings) => {
   const data = {
     storeName: settings?.storeName || 'ZORIQ',
     exportDate: new Date().toISOString(),
-    version: '1.0',
+    version: '2.0',
     products: products || [],
     settings: settings || {}
   };

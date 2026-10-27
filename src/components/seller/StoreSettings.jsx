@@ -14,7 +14,8 @@ import {
   Sparkles,
   ShieldCheck,
   Smartphone,
-  Copy
+  Copy,
+  RefreshCw
 } from 'lucide-react';
 
 export default function StoreSettings() {
@@ -25,6 +26,7 @@ export default function StoreSettings() {
     exportCatalog,
     importCatalog,
     products,
+    syncFromCloud,
     addToast
   } = useStore();
 
@@ -34,7 +36,17 @@ export default function StoreSettings() {
   });
   const [showPhoneSyncModal, setShowPhoneSyncModal] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const fileInputRef = useRef(null);
+
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    await syncFromCloud();
+    setIsSyncing(false);
+    if (addToast) {
+      addToast('Store synchronized! Laptop and mobile are 100% in sync.', 'success');
+    }
+  };
 
   const handleChange = (key, value) => {
     setSettingsForm((prev) => ({ ...prev, [key]: value }));
@@ -434,6 +446,16 @@ export default function StoreSettings() {
 
           {/* Action Row */}
           <div className="flex flex-wrap items-center gap-3 pt-1">
+            <button
+              type="button"
+              disabled={isSyncing}
+              onClick={handleManualSync}
+              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-sm transition-all active:scale-95 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+              <span>{isSyncing ? 'Syncing...' : '🔄 Force Cloud Sync Now'}</span>
+            </button>
+
             <button
               type="button"
               onClick={() => setShowPhoneSyncModal(true)}

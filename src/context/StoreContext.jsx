@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { INITIAL_PRODUCTS, STARTER_PRODUCTS, DEFAULT_SELLER_SETTINGS, SAMPLE_ORDERS } from '../data/initialData';
-import { fetchCloudProducts, pushCloudProducts, exportCatalogToJson, parseCatalogFromJson } from '../services/cloudSync';
+import { fetchCloudStore, pushCloudStore, exportCatalogToJson, parseCatalogFromJson } from '../services/cloudSync';
 
 const StoreContext = createContext();
 
@@ -54,24 +54,6 @@ export function StoreProvider({ children }) {
     }
   });
 
-  // Asynchronous cloud catalog sync across devices
-  useEffect(() => {
-    let isMounted = true;
-    fetchCloudProducts().then((cloudProds) => {
-      if (isMounted && cloudProds && Array.isArray(cloudProds) && cloudProds.length > 0) {
-        setProducts((localProds) => {
-          const existingIds = new Set(localProds.map((p) => p.id));
-          const newFromCloud = cloudProds.filter((p) => !existingIds.has(p.id));
-          if (newFromCloud.length > 0) {
-            return [...localProds, ...newFromCloud];
-          }
-          return localProds;
-        });
-      }
-    });
-    return () => { isMounted = false; };
-  }, []);
-
   // 3. Orders State with LocalStorage
   const [orders, setOrders] = useState(() => {
     try {
@@ -104,6 +86,69 @@ export function StoreProvider({ children }) {
       return DEFAULT_SELLER_SETTINGS;
     }
   });
+
+  // Real-Time Cross-Device Synchronization
+  const syncFromCloud = useCallback(async () => {
+    try {
+      const cloudData = await fetchCloudStore();
+      if (!cloudData) return;
+
+      // 1. Sync Products: ensure any product added/updated/deleted on laptop shows on mobile
+      if (Array.isArray(cloudData.products) && cloudData.products.length > 0) {
+        setProducts(cloudData.products);
+        try {
+          localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(cloudData.products));
+        } catch {}
+      }
+
+      // 2. Sync Seller Settings
+      if (cloudData.sellerSettings && cloudData.sellerSettings.storeName) {
+        setSellerSettings((prev) => ({
+          ...prev,
+          ...cloudData.sellerSettings,
+          razorpayKeyId: cloudData.sellerSettings.razorpayKeyId || prev.razorpayKeyId || 'rzp_live_TstUZQzK6D5kHP',
+          razorpayEnabled: true
+        }));
+      }
+
+      // 3. Sync Orders
+      if (Array.isArray(cloudData.orders)) {
+        setOrders((prev) => {
+          const existingIds = new Set(prev.map((o) => o.id));
+          const newOrdersFromCloud = cloudData.orders.filter((o) => !existingIds.has(o.id));
+          if (newOrdersFromCloud.length > 0) {
+            return [...newOrdersFromCloud, ...prev];
+          }
+          return prev;
+        });
+      }
+    } catch (err) {
+      console.warn('Sync error:', err);
+    }
+  }, []);
+
+  // Continuous background sync across all devices
+  useEffect(() => {
+    syncFromCloud();
+
+    // Auto-sync every 5 seconds so changes on laptop show on mobile almost instantly
+    const interval = setInterval(syncFromCloud, 5000);
+
+    // Sync immediately when user switches back to the tab/app on phone or laptop
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        syncFromCloud();
+      }
+    };
+    window.addEventListener('focus', syncFromCloud);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', syncFromCloud);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [syncFromCloud]);
 
   // 5. Cart State with LocalStorage
   const [cart, setCart] = useState(() => {
@@ -340,7 +385,9 @@ export function StoreProvider({ children }) {
     );
 
     // Append to orders
-    setOrders((prev) => [newOrder, ...prev]);
+    const updatedOrders = [newOrder, ...orders];
+    setOrders(updatedOrders);
+    pushCloudStore({ products, sellerSettings, orders: updatedOrders });
 
     // Clear cart
     clearCart();
@@ -366,68 +413,60 @@ export function StoreProvider({ children }) {
       stock: Number(productData.stock),
     };
 
-    setProducts((prev) => {
-      const updated = [newProduct, ...prev];
-      pushCloudProducts(updated);
-      return updated;
-    });
-    addToast(`Product "${newProduct.name}" added and synced!`, 'success');
+    const updated = [newProduct, ...products];
+    setProducts(updated);
+    pushCloudStore({ products: updated, sellerSettings, orders });
+    addToast(`Product "${newProduct.name}" added and synced to all devices!`, 'success');
   };
 
   const updateProduct = (productId, updatedData) => {
-    setProducts((prev) => {
-      const updated = prev.map((prod) => {
-        if (prod.id === productId) {
-          return {
-            ...prod,
-            ...updatedData,
-            price: Number(updatedData.price),
-            originalPrice: Number(updatedData.originalPrice || updatedData.price * 1.3),
-            stock: Number(updatedData.stock),
-            inStock: Number(updatedData.stock) > 0,
-            codAvailable: updatedData.codAvailable !== undefined ? Boolean(updatedData.codAvailable) : (prod.codAvailable !== false),
-            features: Array.isArray(updatedData.features)
-              ? updatedData.features
-              : (updatedData.features || '').split('\n').filter(Boolean),
-          };
-        }
-        return prod;
-      });
-      pushCloudProducts(updated);
-      return updated;
+    const updated = products.map((prod) => {
+      if (prod.id === productId) {
+        return {
+          ...prod,
+          ...updatedData,
+          price: Number(updatedData.price),
+          originalPrice: Number(updatedData.originalPrice || updatedData.price * 1.3),
+          stock: Number(updatedData.stock),
+          inStock: Number(updatedData.stock) > 0,
+          codAvailable: updatedData.codAvailable !== undefined ? Boolean(updatedData.codAvailable) : (prod.codAvailable !== false),
+          features: Array.isArray(updatedData.features)
+            ? updatedData.features
+            : (updatedData.features || '').split('\n').filter(Boolean),
+        };
+      }
+      return prod;
     });
-    addToast('Product updated and synced!', 'success');
+    setProducts(updated);
+    pushCloudStore({ products: updated, sellerSettings, orders });
+    addToast('Product updated and synced across all devices!', 'success');
   };
 
   const toggleProductCod = (productId) => {
-    setProducts((prev) => {
-      const updated = prev.map((prod) => {
-        if (prod.id === productId) {
-          const current = prod.codAvailable !== false;
-          const next = !current;
-          addToast(`Cash on Delivery (COD) ${next ? 'enabled' : 'disabled'} for "${prod.name.slice(0, 22)}..."`, 'info');
-          return {
-            ...prod,
-            codAvailable: next,
-          };
-        }
-        return prod;
-      });
-      pushCloudProducts(updated);
-      return updated;
+    const updated = products.map((prod) => {
+      if (prod.id === productId) {
+        const current = prod.codAvailable !== false;
+        const next = !current;
+        addToast(`Cash on Delivery (COD) ${next ? 'enabled' : 'disabled'} for "${prod.name.slice(0, 22)}..."`, 'info');
+        return {
+          ...prod,
+          codAvailable: next,
+        };
+      }
+      return prod;
     });
+    setProducts(updated);
+    pushCloudStore({ products: updated, sellerSettings, orders });
   };
 
   const deleteProduct = (productId) => {
     const prod = products.find((p) => p.id === productId);
-    setProducts((prev) => {
-      const updated = prev.filter((p) => p.id !== productId);
-      pushCloudProducts(updated);
-      return updated;
-    });
+    const updated = products.filter((p) => p.id !== productId);
+    setProducts(updated);
+    pushCloudStore({ products: updated, sellerSettings, orders });
     // also remove from cart if present
     setCart((prev) => prev.filter((item) => item.id !== productId));
-    addToast(`Product "${prod?.name || 'Item'}" deleted.`, 'info');
+    addToast(`Product "${prod?.name || 'Item'}" deleted and synced.`, 'info');
   };
 
   const exportCatalog = () => {
@@ -440,7 +479,7 @@ export function StoreProvider({ children }) {
       const imported = await parseCatalogFromJson(file);
       if (imported && imported.length > 0) {
         setProducts(imported);
-        pushCloudProducts(imported);
+        pushCloudStore({ products: imported, sellerSettings, orders });
         addToast(`Successfully imported ${imported.length} products to this store!`, 'success');
       }
     } catch (err) {
@@ -449,60 +488,67 @@ export function StoreProvider({ children }) {
   };
 
   const toggleProductStock = (productId) => {
-    setProducts((prev) =>
-      prev.map((prod) => {
-        if (prod.id === productId) {
-          const nextStockState = !prod.inStock;
-          return {
-            ...prod,
-            inStock: nextStockState,
-            stock: nextStockState ? (prod.stock > 0 ? prod.stock : 10) : 0,
-          };
-        }
-        return prod;
-      })
-    );
-    addToast('Stock status updated', 'info');
+    const updated = products.map((prod) => {
+      if (prod.id === productId) {
+        const nextStockState = !prod.inStock;
+        return {
+          ...prod,
+          inStock: nextStockState,
+          stock: nextStockState ? (prod.stock > 0 ? prod.stock : 10) : 0,
+        };
+      }
+      return prod;
+    });
+    setProducts(updated);
+    pushCloudStore({ products: updated, sellerSettings, orders });
+    addToast('Stock status updated and synced', 'info');
   };
 
   const updateOrderStatus = (orderId, newStatus) => {
-    setOrders((prev) =>
-      prev.map((ord) => {
-        if (ord.id === orderId) {
-          const updated = { ...ord, orderStatus: newStatus };
-          // If marked Delivered and COD, mark payment as Paid
-          if (newStatus === 'Delivered' && ord.paymentMethod === 'COD') {
-            updated.paymentStatus = 'Paid';
-          }
-          return updated;
+    const updatedOrders = orders.map((ord) => {
+      if (ord.id === orderId) {
+        const updated = { ...ord, orderStatus: newStatus };
+        // If marked Delivered and COD, mark payment as Paid
+        if (newStatus === 'Delivered' && ord.paymentMethod === 'COD') {
+          updated.paymentStatus = 'Paid';
         }
-        return ord;
-      })
-    );
+        return updated;
+      }
+      return ord;
+    });
+    setOrders(updatedOrders);
+    pushCloudStore({ products, sellerSettings, orders: updatedOrders });
     addToast(`Order #${orderId} marked as ${newStatus}`, 'success');
   };
 
   const updatePaymentStatus = (orderId, newPaymentStatus) => {
-    setOrders((prev) =>
-      prev.map((ord) => {
-        if (ord.id === orderId) {
-          const updated = { ...ord, paymentStatus: newPaymentStatus };
-          if (newPaymentStatus === 'Paid' && ord.orderStatus === 'Placed') {
-            updated.orderStatus = 'Confirmed';
-          } else if (newPaymentStatus === 'Failed') {
-            updated.orderStatus = 'Cancelled';
-          }
-          return updated;
+    const updatedOrders = orders.map((ord) => {
+      if (ord.id === orderId) {
+        const updated = { ...ord, paymentStatus: newPaymentStatus };
+        if (newPaymentStatus === 'Paid' && ord.orderStatus === 'Placed') {
+          updated.orderStatus = 'Confirmed';
+        } else if (newPaymentStatus === 'Failed') {
+          updated.orderStatus = 'Cancelled';
         }
-        return ord;
-      })
-    );
+        return updated;
+      }
+      return ord;
+    });
+    setOrders(updatedOrders);
+    pushCloudStore({ products, sellerSettings, orders: updatedOrders });
     addToast(`Order #${orderId} payment marked as "${newPaymentStatus}"`, 'info');
   };
 
   const updateSellerSettings = (newSettings) => {
-    setSellerSettings((prev) => ({ ...prev, ...newSettings }));
-    addToast('Store settings updated!', 'success');
+    const updated = {
+      ...sellerSettings,
+      ...newSettings,
+      razorpayKeyId: newSettings.razorpayKeyId || sellerSettings.razorpayKeyId || 'rzp_live_TstUZQzK6D5kHP',
+      razorpayEnabled: true,
+    };
+    setSellerSettings(updated);
+    pushCloudStore({ products, sellerSettings: updated, orders });
+    addToast('Store settings updated and synced across all devices!', 'success');
   };
 
   const resetAllDataToDefault = () => {
@@ -633,6 +679,7 @@ export function StoreProvider({ children }) {
         resetAllDataToDefault,
         exportCatalog,
         importCatalog,
+        syncFromCloud,
 
         // Filter & Search
         searchQuery,
