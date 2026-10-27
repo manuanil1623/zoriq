@@ -28,6 +28,7 @@ export const fetchCloudStore = async () => {
           products: data.products,
           sellerSettings: data.sellerSettings || null,
           orders: Array.isArray(data.orders) ? data.orders : [],
+          deletedProductIds: Array.isArray(data.deletedProductIds) ? data.deletedProductIds : [],
           lastUpdated: data.lastUpdated || null
         };
       }
@@ -54,6 +55,7 @@ export const fetchCloudStore = async () => {
           products: data.products,
           sellerSettings: data.sellerSettings || null,
           orders: Array.isArray(data.orders) ? data.orders : [],
+          deletedProductIds: Array.isArray(data.deletedProductIds) ? data.deletedProductIds : [],
           lastUpdated: data.lastUpdated || null
         };
       }
@@ -76,11 +78,12 @@ export const fetchCloudProducts = async () => {
 /**
  * Push updated products, settings, or orders to the cloud so all devices immediately receive them
  */
-export const pushCloudStore = async ({ products, sellerSettings, orders }) => {
+export const pushCloudStore = async ({ products, sellerSettings, orders, deletedProductIds }) => {
   const payload = {
     products: products || [],
     sellerSettings: sellerSettings || {},
     orders: orders || [],
+    deletedProductIds: deletedProductIds || [],
     lastUpdated: new Date().toISOString()
   };
 

@@ -9,6 +9,7 @@ const STORAGE_KEYS = {
   ORDERS: 'nexmart_live_orders',
   SETTINGS: 'nexmart_settings_v1',
   CART: 'nexmart_cart_v1',
+  DELETED_IDS: 'nexmart_deleted_ids',
 };
 
 // Precise identification of demo items to ensure real user items are never filtered
@@ -75,11 +76,12 @@ export function StoreProvider({ children }) {
   // 2. Products State with LocalStorage & Clean Empty Fallback
   const [products, setProducts] = useState(() => {
     try {
+      const deletedIds = new Set(JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED_IDS) || '[]'));
       const saved = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
       if (!saved) return [];
       const parsed = JSON.parse(saved);
       if (!Array.isArray(parsed)) return [];
-      return parsed.filter((p) => !isDemoProduct(p));
+      return parsed.filter((p) => !isDemoProduct(p) && !deletedIds.has(p.id));
     } catch {
       return [];
     }
@@ -118,19 +120,64 @@ export function StoreProvider({ children }) {
     }
   });
 
-  // Real-Time Cross-Device Synchronization
+  // Real-Time Cross-Device Synchronization with Smart Merge
   const syncFromCloud = useCallback(async () => {
     try {
       const cloudData = await fetchCloudStore();
       if (!cloudData) return;
 
-      // 1. Sync Products: ensure any product added/updated/deleted on laptop shows on mobile
+      // 0. Synchronize deleted product IDs (tombstones) across all devices
+      let deletedIds = new Set();
+      try {
+        const localDeleted = JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED_IDS) || '[]');
+        const cloudDeleted = Array.isArray(cloudData.deletedProductIds) ? cloudData.deletedProductIds : [];
+        deletedIds = new Set([...localDeleted, ...cloudDeleted]);
+        localStorage.setItem(STORAGE_KEYS.DELETED_IDS, JSON.stringify(Array.from(deletedIds)));
+      } catch {}
+
+      // 1. Sync Products: ensure products added on mobile or laptop are merged safely
       if (Array.isArray(cloudData.products)) {
-        const filtered = cloudData.products.filter((p) => !isDemoProduct(p));
-        setProducts(filtered);
-        try {
-          localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(filtered));
-        } catch {}
+        const cloudFiltered = cloudData.products.filter((p) => !isDemoProduct(p) && !deletedIds.has(p.id));
+
+        setProducts((prevLocal) => {
+          const localFiltered = prevLocal.filter((p) => !isDemoProduct(p) && !deletedIds.has(p.id));
+
+          // If cloud has 0 valid products, but this device has added products:
+          // NEVER wipe local products! Push local products to populate the cloud instead!
+          if (cloudFiltered.length === 0 && localFiltered.length > 0) {
+            pushCloudStore({
+              products: localFiltered,
+              sellerSettings,
+              orders,
+              deletedProductIds: Array.from(deletedIds)
+            });
+            return localFiltered;
+          }
+
+          // Build a merged map: product ID -> product
+          const mergedMap = new Map();
+
+          // Add cloud items first
+          for (const item of cloudFiltered) {
+            if (item && item.id) {
+              mergedMap.set(item.id, item);
+            }
+          }
+
+          // Merge local items (preserves newly added or edited products)
+          for (const item of localFiltered) {
+            if (item && item.id) {
+              mergedMap.set(item.id, item);
+            }
+          }
+
+          const merged = Array.from(mergedMap.values());
+          try {
+            localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(merged));
+          } catch {}
+
+          return merged;
+        });
       }
 
       // 2. Sync Seller Settings
@@ -157,7 +204,7 @@ export function StoreProvider({ children }) {
     } catch (err) {
       console.warn('Sync error:', err);
     }
-  }, []);
+  }, [sellerSettings, orders]);
 
   // Continuous background sync across all devices
   useEffect(() => {
@@ -445,60 +492,103 @@ export function StoreProvider({ children }) {
       stock: Number(productData.stock),
     };
 
-    const updated = [newProduct, ...products];
-    setProducts(updated);
-    pushCloudStore({ products: updated, sellerSettings, orders });
-    addToast(`Product "${newProduct.name}" added and synced to all devices!`, 'success');
+    // Remove newId from deleted IDs if previously recorded
+    try {
+      const deleted = JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED_IDS) || '[]');
+      const filteredDeleted = deleted.filter((id) => id !== newId);
+      localStorage.setItem(STORAGE_KEYS.DELETED_IDS, JSON.stringify(filteredDeleted));
+    } catch {}
+
+    setProducts((prev) => {
+      const updated = [newProduct, ...prev.filter((p) => p.id !== newId)];
+      try {
+        localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
+      } catch {}
+      pushCloudStore({ products: updated, sellerSettings, orders });
+      return updated;
+    });
+
+    addToast(`Product "${newProduct.name}" added successfully!`, 'success');
   };
 
   const updateProduct = (productId, updatedData) => {
-    const updated = products.map((prod) => {
-      if (prod.id === productId) {
-        return {
-          ...prod,
-          ...updatedData,
-          price: Number(updatedData.price),
-          originalPrice: Number(updatedData.originalPrice || updatedData.price * 1.3),
-          stock: Number(updatedData.stock),
-          inStock: Number(updatedData.stock) > 0,
-          codAvailable: updatedData.codAvailable !== undefined ? Boolean(updatedData.codAvailable) : (prod.codAvailable !== false),
-          features: Array.isArray(updatedData.features)
-            ? updatedData.features
-            : (updatedData.features || '').split('\n').filter(Boolean),
-        };
-      }
-      return prod;
+    setProducts((prev) => {
+      const updated = prev.map((prod) => {
+        if (prod.id === productId) {
+          return {
+            ...prod,
+            ...updatedData,
+            price: Number(updatedData.price),
+            originalPrice: Number(updatedData.originalPrice || updatedData.price * 1.3),
+            stock: Number(updatedData.stock),
+            inStock: Number(updatedData.stock) > 0,
+            codAvailable: updatedData.codAvailable !== undefined ? Boolean(updatedData.codAvailable) : (prod.codAvailable !== false),
+            features: Array.isArray(updatedData.features)
+              ? updatedData.features
+              : (updatedData.features || '').split('\n').filter(Boolean),
+          };
+        }
+        return prod;
+      });
+      try {
+        localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
+      } catch {}
+      pushCloudStore({ products: updated, sellerSettings, orders });
+      return updated;
     });
-    setProducts(updated);
-    pushCloudStore({ products: updated, sellerSettings, orders });
     addToast('Product updated and synced across all devices!', 'success');
   };
 
   const toggleProductCod = (productId) => {
-    const updated = products.map((prod) => {
-      if (prod.id === productId) {
-        const current = prod.codAvailable !== false;
-        const next = !current;
-        addToast(`Cash on Delivery (COD) ${next ? 'enabled' : 'disabled'} for "${prod.name.slice(0, 22)}..."`, 'info');
-        return {
-          ...prod,
-          codAvailable: next,
-        };
-      }
-      return prod;
+    setProducts((prev) => {
+      const updated = prev.map((prod) => {
+        if (prod.id === productId) {
+          const current = prod.codAvailable !== false;
+          const next = !current;
+          addToast(`Cash on Delivery (COD) ${next ? 'enabled' : 'disabled'} for "${prod.name.slice(0, 22)}..."`, 'info');
+          return {
+            ...prod,
+            codAvailable: next,
+          };
+        }
+        return prod;
+      });
+      try {
+        localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
+      } catch {}
+      pushCloudStore({ products: updated, sellerSettings, orders });
+      return updated;
     });
-    setProducts(updated);
-    pushCloudStore({ products: updated, sellerSettings, orders });
   };
 
   const deleteProduct = (productId) => {
-    const prod = products.find((p) => p.id === productId);
-    const updated = products.filter((p) => p.id !== productId);
-    setProducts(updated);
-    pushCloudStore({ products: updated, sellerSettings, orders });
-    // also remove from cart if present
+    let deletedList = [];
+    try {
+      const deleted = JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED_IDS) || '[]');
+      if (!deleted.includes(productId)) {
+        deleted.push(productId);
+      }
+      deletedList = deleted;
+      localStorage.setItem(STORAGE_KEYS.DELETED_IDS, JSON.stringify(deletedList));
+    } catch {}
+
+    setProducts((prev) => {
+      const prod = prev.find((p) => p.id === productId);
+      const updated = prev.filter((p) => p.id !== productId);
+      try {
+        localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
+      } catch {}
+      pushCloudStore({
+        products: updated,
+        sellerSettings,
+        orders,
+        deletedProductIds: deletedList
+      });
+      addToast(`Product "${prod?.name || 'Item'}" deleted and synced.`, 'info');
+      return updated;
+    });
+
     setCart((prev) => prev.filter((item) => item.id !== productId));
-    addToast(`Product "${prod?.name || 'Item'}" deleted and synced.`, 'info');
   };
 
   const exportCatalog = () => {
@@ -511,6 +601,9 @@ export function StoreProvider({ children }) {
       const imported = await parseCatalogFromJson(file);
       if (imported && imported.length > 0) {
         setProducts(imported);
+        try {
+          localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(imported));
+        } catch {}
         pushCloudStore({ products: imported, sellerSettings, orders });
         addToast(`Successfully imported ${imported.length} products to this store!`, 'success');
       }
@@ -520,20 +613,25 @@ export function StoreProvider({ children }) {
   };
 
   const toggleProductStock = (productId) => {
-    const updated = products.map((prod) => {
-      if (prod.id === productId) {
-        const nextStockState = !prod.inStock;
-        return {
-          ...prod,
-          inStock: nextStockState,
-          stock: nextStockState ? (prod.stock > 0 ? prod.stock : 10) : 0,
-        };
-      }
-      return prod;
+    setProducts((prev) => {
+      const updated = prev.map((prod) => {
+        if (prod.id === productId) {
+          const nextStockState = !prod.inStock;
+          return {
+            ...prod,
+            inStock: nextStockState,
+            stock: nextStockState ? (prod.stock > 0 ? prod.stock : 10) : 0,
+          };
+        }
+        return prod;
+      });
+      try {
+        localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
+      } catch {}
+      pushCloudStore({ products: updated, sellerSettings, orders });
+      addToast('Stock status updated and synced', 'info');
+      return updated;
     });
-    setProducts(updated);
-    pushCloudStore({ products: updated, sellerSettings, orders });
-    addToast('Stock status updated and synced', 'info');
   };
 
   const updateOrderStatus = (orderId, newStatus) => {
@@ -593,7 +691,8 @@ export function StoreProvider({ children }) {
     localStorage.removeItem(STORAGE_KEYS.ORDERS);
     localStorage.removeItem(STORAGE_KEYS.SETTINGS);
     localStorage.removeItem(STORAGE_KEYS.CART);
-    pushCloudStore({ products: [], sellerSettings: DEFAULT_SELLER_SETTINGS, orders: [] });
+    localStorage.removeItem(STORAGE_KEYS.DELETED_IDS);
+    pushCloudStore({ products: [], sellerSettings: DEFAULT_SELLER_SETTINGS, orders: [], deletedProductIds: [] });
     addToast('Store reset to clean defaults', 'info');
   };
 
