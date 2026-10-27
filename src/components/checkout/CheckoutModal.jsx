@@ -17,9 +17,92 @@ import {
   RefreshCw,
   AlertCircle,
   Sparkles,
-  ShoppingBag,
-  ExternalLink
+  ExternalLink,
+  Laptop,
+  Send
 } from 'lucide-react';
+
+// UPI In-App and Collect providers configuration
+const UPI_APPS = [
+  {
+    id: 'gpay',
+    name: 'Google Pay',
+    shortName: 'GPay',
+    scheme: 'gpay',
+    badge: 'Tez Intent',
+    handles: ['@okhdfcbank', '@okaxis', '@oksbi', '@okicici'],
+    defaultHandle: '@okhdfcbank',
+    accentBorder: 'border-blue-500',
+    accentBg: 'bg-blue-50/70',
+    accentRing: 'ring-blue-500/25',
+    accentText: 'text-blue-900',
+    tagText: 'text-blue-600',
+    icon: (
+      <div className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center shadow-xs">
+        <span className="font-bold text-xs bg-gradient-to-r from-blue-500 via-red-500 to-yellow-500 bg-clip-text text-transparent">
+          GPay
+        </span>
+      </div>
+    )
+  },
+  {
+    id: 'phonepe',
+    name: 'PhonePe',
+    shortName: 'PhonePe',
+    scheme: 'phonepe',
+    badge: 'Direct Launch',
+    handles: ['@ybl', '@ibl', '@axl'],
+    defaultHandle: '@ybl',
+    accentBorder: 'border-purple-500',
+    accentBg: 'bg-purple-50/70',
+    accentRing: 'ring-purple-500/25',
+    accentText: 'text-purple-900',
+    tagText: 'text-purple-600',
+    icon: (
+      <div className="w-8 h-8 rounded-full bg-purple-700 text-white flex items-center justify-center font-bold text-sm shadow-xs">
+        पे
+      </div>
+    )
+  },
+  {
+    id: 'paytm',
+    name: 'Paytm UPI',
+    shortName: 'Paytm',
+    scheme: 'paytm',
+    badge: 'Instant Pay',
+    handles: ['@paytm', '@ptsbi', '@pthdfc'],
+    defaultHandle: '@paytm',
+    accentBorder: 'border-sky-500',
+    accentBg: 'bg-sky-50/70',
+    accentRing: 'ring-sky-500/25',
+    accentText: 'text-sky-900',
+    tagText: 'text-sky-600',
+    icon: (
+      <div className="w-8 h-8 rounded-full bg-[#002e6e] text-sky-300 flex items-center justify-center font-bold text-xs shadow-xs">
+        Paytm
+      </div>
+    )
+  },
+  {
+    id: 'bhim',
+    name: 'BHIM / Any UPI',
+    shortName: 'BHIM',
+    scheme: 'universal',
+    badge: 'Universal',
+    handles: ['@upi', '@postbank', '@barodampay'],
+    defaultHandle: '@upi',
+    accentBorder: 'border-emerald-500',
+    accentBg: 'bg-emerald-50/70',
+    accentRing: 'ring-emerald-500/25',
+    accentText: 'text-emerald-900',
+    tagText: 'text-emerald-600',
+    icon: (
+      <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+        UPI
+      </div>
+    )
+  }
+];
 
 export default function CheckoutModal() {
   const {
@@ -27,16 +110,11 @@ export default function CheckoutModal() {
     setIsCheckoutOpen,
     cart,
     products,
-    cartSubtotal,
-    discountAmount,
     shippingFee,
     cartTotal,
     sellerSettings,
     placeOrder,
-    setSelectedInvoice,
-    setRole,
-    setSellerActiveTab,
-    coupon
+    setSelectedInvoice
   } = useStore();
 
   // Multi-step checkout: 1: Shipping, 2: Payment Gateway, 3: Success Confirmation
@@ -66,11 +144,36 @@ export default function CheckoutModal() {
   // Payment Selection: 'UPI' | 'COD'
   const [paymentMethod, setPaymentMethod] = useState('UPI');
 
-  // UPI sub-mode: 'qr' | 'intent' | 'vpa'
+  // Device detection (Mobile vs Laptop/Desktop)
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof navigator === 'undefined') return false;
+    return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+  });
+
+  // Responsive device check listener
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobileUA = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+      setIsMobile(mobileUA);
+    };
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // UPI sub-mode: 'qr' | 'intent' | 'vpa' | 'bank'
   const [upiSubMode, setUpiSubMode] = useState('qr');
   const [upiVpaInput, setUpiVpaInput] = useState('');
   const [isVerifyingUpi, setIsVerifyingUpi] = useState(false);
   const [copiedUpi, setCopiedUpi] = useState(false);
+
+  // Selected UPI App in 'intent' submode & desktop collect state
+  const [selectedUpiAppId, setSelectedUpiAppId] = useState('gpay');
+  const [desktopUpiInput, setDesktopUpiInput] = useState('');
+  const [desktopUpiSuffix, setDesktopUpiSuffix] = useState('@okhdfcbank');
+  const [desktopCollectStage, setDesktopCollectStage] = useState('input'); // 'input' | 'sent'
+  const [desktopUtr, setDesktopUtr] = useState('');
+  const [desktopUpiError, setDesktopUpiError] = useState('');
+  const [mobileLaunchedApp, setMobileLaunchedApp] = useState(null);
 
   // COD Anti-bot Captcha
   const [captchaCode, setCaptchaCode] = useState(() => Math.floor(1000 + Math.random() * 9000).toString());
@@ -83,6 +186,16 @@ export default function CheckoutModal() {
   // Placed order reference for success screen
   const [placedOrder, setPlacedOrder] = useState(null);
 
+  // Current active UPI app config
+  const currentApp = UPI_APPS.find((a) => a.id === selectedUpiAppId) || UPI_APPS[0];
+
+  const getFullEnteredUpiId = () => {
+    const raw = desktopUpiInput.trim();
+    if (!raw) return '';
+    if (raw.includes('@')) return raw;
+    return `${raw}${desktopUpiSuffix}`;
+  };
+
   // Reset state when checkout opens
   useEffect(() => {
     if (isCheckoutOpen) {
@@ -91,6 +204,12 @@ export default function CheckoutModal() {
       setTimeLeft(300);
       setCaptchaCode(Math.floor(1000 + Math.random() * 9000).toString());
       setCaptchaInput('');
+      setDesktopCollectStage('input');
+      setDesktopUpiInput('');
+      setDesktopUtr('');
+      setDesktopUpiError('');
+      setMobileLaunchedApp(null);
+      setIsVerifyingUpi(false);
     }
   }, [isCheckoutOpen]);
 
@@ -144,7 +263,7 @@ export default function CheckoutModal() {
   };
 
   // Complete Payment Action
-  const handleCompleteOrder = (forcedMethod) => {
+  const handleCompleteOrder = (forcedMethod, customUpiVpa, customUtr) => {
     const activeMethod = forcedMethod || paymentMethod;
 
     if (activeMethod === 'COD') {
@@ -154,14 +273,16 @@ export default function CheckoutModal() {
       }
     }
 
-    const upiTxnId = `UPI/${new Date().getFullYear()}/${Math.floor(100000000000 + Math.random() * 900000000000)}`;
+    const generatedUpiTxnId = `UPI/${new Date().getFullYear()}/${Math.floor(100000000000 + Math.random() * 900000000000)}`;
+    const finalUtr = (customUtr && customUtr.trim()) || (desktopUtr && desktopUtr.trim()) || generatedUpiTxnId;
+    const finalVpa = customUpiVpa || (desktopUpiInput ? getFullEnteredUpiId() : (upiVpaInput || 'customer@upi'));
 
     const order = placeOrder({
       customer,
       paymentMethod: activeMethod,
       paymentDetails: {
-        upiTxnId: activeMethod === 'UPI' ? upiTxnId : null,
-        upiVpa: activeMethod === 'UPI' ? (upiVpaInput || 'customer@upi') : null,
+        upiTxnId: activeMethod === 'UPI' ? finalUtr : null,
+        upiVpa: activeMethod === 'UPI' ? finalVpa : null,
       }
     });
 
@@ -180,41 +301,74 @@ export default function CheckoutModal() {
     }
   };
 
-  // Launching or Simulating UPI App
-  const handleLaunchUpiApp = (appName, scheme) => {
-    setIsVerifyingUpi(true);
-
+  // Mobile App Launcher
+  const handleLaunchMobileApp = (targetApp) => {
+    const app = targetApp || currentApp;
     const note = `ZORIQ_Order_${Date.now()}`;
     const encodedMerchant = encodeURIComponent(sellerSettings.merchantName || 'ZORIQ Store');
     const upiId = sellerSettings.sellerUpiId || 'store@upi';
 
-    // Construct app-specific deep link URI schemes
     let deepLink = `upi://pay?pa=${upiId}&pn=${encodedMerchant}&am=${cartTotal}&cu=INR&tn=${note}`;
-    if (scheme === 'gpay') {
+    if (app.scheme === 'gpay') {
       deepLink = `tez://upi/pay?pa=${upiId}&pn=${encodedMerchant}&am=${cartTotal}&cu=INR&tn=${note}`;
-    } else if (scheme === 'phonepe') {
+    } else if (app.scheme === 'phonepe') {
       deepLink = `phonepe://pay?pa=${upiId}&pn=${encodedMerchant}&am=${cartTotal}&cu=INR&tn=${note}`;
-    } else if (scheme === 'paytm') {
+    } else if (app.scheme === 'paytm') {
       deepLink = `paytmmp://pay?pa=${upiId}&pn=${encodedMerchant}&am=${cartTotal}&cu=INR&tn=${note}`;
     }
 
-    const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+    setMobileLaunchedApp(app.name);
+    setIsVerifyingUpi(true);
+
+    // On mobile devices, redirect directly into the installed UPI app!
+    window.location.href = deepLink;
+
+    // Fallback universal upi:// if specific app is not installed
+    setTimeout(() => {
+      window.location.href = `upi://pay?pa=${upiId}&pn=${encodedMerchant}&am=${cartTotal}&cu=INR&tn=${note}`;
+      setIsVerifyingUpi(false);
+    }, 1500);
+  };
+
+  // Selecting an app card (Differentiates between Laptop Collect & Mobile Redirect)
+  const handleSelectApp = (app) => {
+    setSelectedUpiAppId(app.id);
+    setDesktopUpiSuffix(app.defaultHandle);
+    setDesktopUpiError('');
 
     if (isMobile) {
-      // On mobile devices, redirect directly into the installed UPI app!
-      window.location.href = deepLink;
-
-      // Fallback to universal upi:// if specific app is not installed
-      setTimeout(() => {
-        window.location.href = `upi://pay?pa=${upiId}&pn=${encodedMerchant}&am=${cartTotal}&cu=INR&tn=${note}`;
-      }, 1500);
+      handleLaunchMobileApp(app);
+    } else {
+      // Laptop: stay on input stage without fake redirecting or auto-completing!
+      setDesktopCollectStage('input');
     }
+  };
 
-    // Auto-advance after verification
+  // Laptop: Send Collect Request to user's UPI ID / Phone
+  const handleSendDesktopCollect = (e) => {
+    if (e) e.preventDefault();
+    const raw = desktopUpiInput.trim();
+    if (!raw || raw.length < 3) {
+      setDesktopUpiError('Please enter a valid UPI ID or 10-digit mobile number');
+      return;
+    }
+    setDesktopUpiError('');
+    setIsVerifyingUpi(true);
+
+    // Provide quick feedback simulating collect request dispatch
     setTimeout(() => {
       setIsVerifyingUpi(false);
-      handleCompleteOrder('UPI');
-    }, isMobile ? 3500 : 2200);
+      setDesktopCollectStage('sent');
+    }, 450);
+  };
+
+  // Laptop: Confirm payment after user approved request on their phone
+  const handleConfirmDesktopPayment = () => {
+    setIsVerifyingUpi(true);
+    setTimeout(() => {
+      setIsVerifyingUpi(false);
+      handleCompleteOrder('UPI', getFullEnteredUpiId(), desktopUtr);
+    }, 850);
   };
 
   return (
@@ -588,99 +742,334 @@ export default function CheckoutModal() {
                   </div>
                 )}
 
-                {/* Submode 2: Direct UPI App Deep-Links */}
+                {/* Submode 2: Direct UPI App Deep-Links / Laptop Collect */}
                 {upiSubMode === 'intent' && (
-                  <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm space-y-3">
+                  <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm space-y-3.5">
+                    
+                    {/* Header info bar with device indicator */}
                     <div className="flex items-center justify-between">
-                      <p className="text-xs text-gray-700 font-bold">
-                        Tap an icon to pay via installed mobile UPI app:
-                      </p>
-                      <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded">
-                        1-Click Redirection
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                      {[
-                        {
-                          id: 'gpay',
-                          name: 'Google Pay',
-                          scheme: 'gpay',
-                          bg: 'bg-white hover:bg-blue-50/60 border-blue-200 text-blue-900',
-                          badge: 'Tez Intent',
-                          icon: (
-                            <div className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center shadow-xs">
-                              <span className="font-bold text-xs bg-gradient-to-r from-blue-500 via-red-500 to-yellow-500 bg-clip-text text-transparent">
-                                GPay
-                              </span>
-                            </div>
-                          )
-                        },
-                        {
-                          id: 'phonepe',
-                          name: 'PhonePe',
-                          scheme: 'phonepe',
-                          bg: 'bg-purple-50/60 hover:bg-purple-100/70 border-purple-200 text-purple-900',
-                          badge: 'Direct Launch',
-                          icon: (
-                            <div className="w-8 h-8 rounded-full bg-purple-700 text-white flex items-center justify-center font-bold text-sm shadow-xs">
-                              पे
-                            </div>
-                          )
-                        },
-                        {
-                          id: 'paytm',
-                          name: 'Paytm UPI',
-                          scheme: 'paytm',
-                          bg: 'bg-sky-50/60 hover:bg-sky-100/70 border-sky-200 text-sky-900',
-                          badge: 'Instant Pay',
-                          icon: (
-                            <div className="w-8 h-8 rounded-full bg-[#002e6e] text-sky-300 flex items-center justify-center font-bold text-xs shadow-xs">
-                              Paytm
-                            </div>
-                          )
-                        },
-                        {
-                          id: 'bhim',
-                          name: 'BHIM / Any UPI',
-                          scheme: 'universal',
-                          bg: 'bg-emerald-50/60 hover:bg-emerald-100/70 border-emerald-200 text-emerald-900',
-                          badge: 'Universal',
-                          icon: (
-                            <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
-                              UPI
-                            </div>
-                          )
-                        },
-                      ].map((app) => (
-                        <button
-                          key={app.id}
-                          type="button"
-                          disabled={isVerifyingUpi}
-                          onClick={() => handleLaunchUpiApp(app.name, app.scheme)}
-                          className={`p-3 rounded-xl border text-center transition-all shadow-xs active:scale-95 flex flex-col items-center justify-center gap-1.5 ${app.bg}`}
-                        >
-                          {app.icon}
-                          <span className="text-xs font-bold leading-tight">{app.name}</span>
-                          <span className="text-[10px] text-gray-500 font-semibold">Pay ₹{cartTotal}</span>
-                          <span className="text-[9px] text-gray-400 font-medium">{app.badge}</span>
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="p-2.5 bg-indigo-50/60 rounded-xl border border-indigo-100 text-[11px] text-indigo-900 flex items-start gap-2">
-                      <Sparkles className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
                       <div>
-                        <strong>Mobile redirection:</strong> On smartphones, tapping an icon triggers the native deep-link (<code>phonepe://</code> or <code>tez://</code>) to open the app with payment amount prefilled. On desktop computers, scanning the QR code tab is recommended.
+                        <p className="text-xs text-gray-800 font-bold">
+                          {isMobile ? 'Tap an app to pay directly:' : 'Select your preferred UPI app:'}
+                        </p>
+                        <p className="text-[11px] text-gray-500">
+                          {isMobile ? 'Opens app with prefilled payment details' : 'Enter your UPI ID below to receive a collect request'}
+                        </p>
                       </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setIsMobile(!isMobile)}
+                        title="Click to toggle device mode for testing"
+                        className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200 transition-colors cursor-pointer"
+                      >
+                        {isMobile ? (
+                          <>
+                            <Smartphone className="w-3 h-3 text-emerald-600" />
+                            <span>Mobile Mode</span>
+                          </>
+                        ) : (
+                          <>
+                            <Laptop className="w-3 h-3 text-indigo-600" />
+                            <span>Laptop Mode</span>
+                          </>
+                        )}
+                      </button>
                     </div>
 
-                    {isVerifyingUpi && (
-                      <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center justify-center gap-2 text-indigo-700 text-xs font-semibold animate-pulse">
-                        <RefreshCw className="w-4 h-4 animate-spin text-indigo-600" />
-                        <span>Awaiting UPI authorization response from bank app...</span>
+                    {/* App Selection Grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                      {UPI_APPS.map((app) => {
+                        const isSelected = selectedUpiAppId === app.id;
+                        return (
+                          <button
+                            key={app.id}
+                            type="button"
+                            disabled={isVerifyingUpi}
+                            onClick={() => handleSelectApp(app)}
+                            className={`p-3 rounded-xl border text-center transition-all shadow-xs active:scale-95 flex flex-col items-center justify-center gap-1.5 relative ${
+                              isSelected
+                                ? `border-2 ${app.accentBorder} ${app.accentBg} ${app.accentRing} ring-2 shadow-sm`
+                                : 'border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50/80 text-gray-700'
+                            }`}
+                          >
+                            {isSelected && (
+                              <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold shadow-xs">
+                                ✓
+                              </span>
+                            )}
+                            {app.icon}
+                            <span className="text-xs font-bold leading-tight">{app.name}</span>
+                            <span className="text-[10px] text-gray-500 font-semibold">Pay ₹{cartTotal.toLocaleString('en-IN')}</span>
+                            <span className={`text-[9px] font-medium ${isSelected ? app.tagText : 'text-gray-400'}`}>
+                              {app.badge}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* --- LAPTOP / DESKTOP FLOW --- */}
+                    {!isMobile && (
+                      <div className="border border-indigo-100 bg-gradient-to-b from-indigo-50/40 to-white rounded-xl p-3.5 sm:p-4 space-y-3.5">
+                        
+                        {/* Explanatory alert */}
+                        <div className="flex items-start gap-2 text-[11px] text-indigo-950 bg-indigo-50/80 p-2.5 rounded-lg border border-indigo-100">
+                          <Laptop className="w-4 h-4 text-indigo-600 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <strong>Laptop UPI Notice:</strong> Desktop browsers cannot trigger mobile app redirects. Enter your <strong>{currentApp.name}</strong> UPI ID below to receive a payment collect request on your phone, or scan the QR code.
+                          </div>
+                        </div>
+
+                        {/* Stage 1: Enter UPI ID for Collect Request */}
+                        {desktopCollectStage === 'input' && (
+                          <form onSubmit={handleSendDesktopCollect} className="space-y-3">
+                            <div>
+                              <label className="block text-xs font-bold text-gray-800 mb-1">
+                                Enter your {currentApp.name} UPI ID / Mobile Number:
+                              </label>
+                              <div className="flex rounded-xl shadow-xs border border-gray-300 focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500 bg-white overflow-hidden">
+                                <span className="inline-flex items-center px-3 bg-gray-50 text-gray-500 text-xs font-mono border-r border-gray-200">
+                                  @
+                                </span>
+                                <input
+                                  type="text"
+                                  value={desktopUpiInput}
+                                  onChange={(e) => {
+                                    setDesktopUpiInput(e.target.value);
+                                    if (desktopUpiError) setDesktopUpiError('');
+                                  }}
+                                  placeholder="e.g. 9876543210 or yourname"
+                                  className="flex-1 px-3 py-2.5 text-xs text-gray-900 bg-transparent focus:outline-none"
+                                />
+                                {!desktopUpiInput.includes('@') && (
+                                  <select
+                                    value={desktopUpiSuffix}
+                                    onChange={(e) => setDesktopUpiSuffix(e.target.value)}
+                                    className="bg-gray-50 text-xs text-indigo-700 font-semibold px-2 border-l border-gray-200 focus:outline-none cursor-pointer"
+                                  >
+                                    {currentApp.handles.map((h) => (
+                                      <option key={h} value={h}>
+                                        {h}
+                                      </option>
+                                    ))}
+                                  </select>
+                                )}
+                              </div>
+
+                              {desktopUpiError && (
+                                <p className="text-[11px] text-rose-500 font-semibold mt-1 flex items-center gap-1">
+                                  <AlertCircle className="w-3.5 h-3.5" />
+                                  <span>{desktopUpiError}</span>
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Handle Chips */}
+                            {!desktopUpiInput.includes('@') && (
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[10px] text-gray-400 font-medium">Popular handles:</span>
+                                {currentApp.handles.map((h) => (
+                                  <button
+                                    key={h}
+                                    type="button"
+                                    onClick={() => setDesktopUpiSuffix(h)}
+                                    className={`text-[10px] px-2 py-0.5 rounded-md font-mono transition-colors ${
+                                      desktopUpiSuffix === h
+                                        ? 'bg-indigo-600 text-white font-bold'
+                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                    }`}
+                                  >
+                                    {h}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Action Buttons */}
+                            <div className="pt-1 flex flex-col sm:flex-row gap-2">
+                              <button
+                                type="submit"
+                                disabled={isVerifyingUpi}
+                                className="flex-1 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-xs shadow-md shadow-indigo-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                              >
+                                {isVerifyingUpi ? (
+                                  <>
+                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                    <span>Sending Collect Request...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Send className="w-3.5 h-3.5" />
+                                    <span>Send Payment Request (₹{cartTotal.toLocaleString('en-IN')})</span>
+                                  </>
+                                )}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setUpiSubMode('qr')}
+                                className="py-2.5 px-3 rounded-xl border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+                              >
+                                <QrCode className="w-3.5 h-3.5 text-gray-500" />
+                                <span>Scan QR Instead</span>
+                              </button>
+                            </div>
+                          </form>
+                        )}
+
+                        {/* Stage 2: Payment Request Sent — Awaiting User Approval */}
+                        {desktopCollectStage === 'sent' && (
+                          <div className="space-y-3.5 animate-in fade-in">
+                            {/* Success notification banner */}
+                            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs space-y-1 text-emerald-950">
+                              <div className="flex items-center gap-1.5 font-bold text-emerald-800">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                                <span>Payment Request Sent to {currentApp.name}!</span>
+                              </div>
+                              <p className="text-[11px] text-emerald-900 leading-relaxed">
+                                A collect request for <strong>₹{cartTotal.toLocaleString('en-IN')}</strong> has been sent to{' '}
+                                <span className="font-mono font-bold bg-white/80 px-1.5 py-0.5 rounded border border-emerald-300 text-emerald-950">
+                                  {getFullEnteredUpiId()}
+                                </span>
+                              </p>
+                            </div>
+
+                            {/* Step-by-step instructions */}
+                            <div className="bg-white p-3 rounded-xl border border-gray-200 text-xs space-y-2">
+                              <span className="font-bold text-gray-800 block text-[11px]">
+                                Next Steps on your Mobile:
+                              </span>
+                              <div className="space-y-1.5 text-gray-600 text-[11px]">
+                                <div className="flex items-start gap-2">
+                                  <span className="w-4 h-4 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-[10px] flex-shrink-0 mt-0.5">
+                                    1
+                                  </span>
+                                  <span>Open <strong>{currentApp.name}</strong> on your mobile phone.</span>
+                                </div>
+                                <div className="flex items-start gap-2">
+                                  <span className="w-4 h-4 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-[10px] flex-shrink-0 mt-0.5">
+                                    2
+                                  </span>
+                                  <span>
+                                    Approve the payment request of <strong>₹{cartTotal.toLocaleString('en-IN')}</strong> to <strong>{sellerSettings.merchantName || 'ZORIQ Store'}</strong>.
+                                  </span>
+                                </div>
+                                <div className="flex items-start gap-2">
+                                  <span className="w-4 h-4 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-[10px] flex-shrink-0 mt-0.5">
+                                    3
+                                  </span>
+                                  <span>Click <strong>Confirm Payment & Complete Order</strong> below.</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Optional UTR Number Input */}
+                            <div>
+                              <label className="block text-[11px] font-semibold text-gray-700 mb-1">
+                                12-Digit UPI Reference / UTR Number (Optional):
+                              </label>
+                              <input
+                                type="text"
+                                maxLength={16}
+                                value={desktopUtr}
+                                onChange={(e) => setDesktopUtr(e.target.value.replace(/[^a-zA-Z0-9]/g, ''))}
+                                placeholder="e.g. 409201839201"
+                                className="w-full px-3 py-2 text-xs font-mono bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              />
+                            </div>
+
+                            {/* Primary Confirm Button */}
+                            <button
+                              type="button"
+                              disabled={isVerifyingUpi}
+                              onClick={handleConfirmDesktopPayment}
+                              className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white font-bold text-xs shadow-md shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                            >
+                              {isVerifyingUpi ? (
+                                <>
+                                  <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                                  <span>Verifying Payment with Bank...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+                                  <span>Confirm Payment & Complete Order (₹{cartTotal.toLocaleString('en-IN')})</span>
+                                </>
+                              )}
+                            </button>
+
+                            {/* Helper links */}
+                            <div className="flex items-center justify-between text-[11px] pt-1">
+                              <button
+                                type="button"
+                                onClick={() => setDesktopCollectStage('input')}
+                                className="text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer"
+                              >
+                                ← Change UPI ID / Resend Request
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setUpiSubMode('qr')}
+                                className="text-gray-500 hover:text-gray-800 cursor-pointer"
+                              >
+                                Switch to QR Code
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
                       </div>
                     )}
+
+                    {/* --- MOBILE FLOW --- */}
+                    {isMobile && (
+                      <div className="space-y-3">
+                        {mobileLaunchedApp ? (
+                          <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3.5 space-y-3 text-xs">
+                            <div className="flex items-center gap-2 text-indigo-900 font-bold">
+                              <Smartphone className="w-4 h-4 text-indigo-600" />
+                              <span>Opening {mobileLaunchedApp}...</span>
+                            </div>
+                            <p className="text-[11px] text-gray-600 leading-relaxed">
+                              Complete the payment in <strong>{mobileLaunchedApp}</strong>. Once approved, tap below to confirm your order.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => handleCompleteOrder('UPI')}
+                              className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
+                            >
+                              <CheckCircle2 className="w-4 h-4" />
+                              <span>I Have Completed Payment in {mobileLaunchedApp}</span>
+                            </button>
+                            <div className="flex items-center justify-between text-[10px] text-gray-500 pt-1">
+                              <button
+                                type="button"
+                                onClick={() => handleLaunchMobileApp()}
+                                className="text-indigo-600 hover:underline font-semibold cursor-pointer"
+                              >
+                                App didn't open? Tap to retry
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setUpiSubMode('qr')}
+                                className="text-gray-500 hover:underline cursor-pointer"
+                              >
+                                Scan QR Instead
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="p-2.5 bg-indigo-50/60 rounded-xl border border-indigo-100 text-[11px] text-indigo-900 flex items-start gap-2">
+                            <Sparkles className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                            <div>
+                              Tap any app icon above to launch the app directly with the payment amount of <strong>₹{cartTotal.toLocaleString('en-IN')}</strong> prefilled.
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                   </div>
                 )}
 
@@ -704,13 +1093,16 @@ export default function CheckoutModal() {
                       <button
                         type="button"
                         onClick={() => {
-                          if (!upiVpaInput) {
-                            setUpiVpaInput('user@oksbi');
-                          }
-                          handleLaunchUpiApp('UPI VPA', 'universal');
+                          const vpa = upiVpaInput.trim() || 'user@oksbi';
+                          setUpiVpaInput(vpa);
+                          setIsVerifyingUpi(true);
+                          setTimeout(() => {
+                            setIsVerifyingUpi(false);
+                            handleCompleteOrder('UPI', vpa);
+                          }, 850);
                         }}
                         disabled={isVerifyingUpi}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-sm transition-colors flex items-center gap-1.5"
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
                       >
                         {isVerifyingUpi ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : null}
                         <span>Verify & Pay</span>

@@ -318,7 +318,6 @@ export function StoreProvider({ children }) {
 
     // Clear cart
     clearCart();
-    setIsCheckoutOpen(false);
 
     addToast(`Order #${orderId} placed successfully!`, 'success');
     return newOrder;
