@@ -14,30 +14,30 @@ export const INITIAL_PRODUCTS = [];
 export const DEFAULT_SELLER_SETTINGS = {
   // Store Identity
   storeName: 'ZORIQ',
-  tagline: 'Direct-to-Consumer Online Store',
+  tagline: 'SHOP MORE. LIVE BETTER.',
   logoUrl: '/zoriq-logo.jpg',
-  contactPhone: '',
-  contactEmail: '',
-  address: '',
+  contactPhone: '9037396484 / 9778061371',
+  contactEmail: 'zoriq556@gmail.com',
+  address: 'muthuthala,pattambi,kerala',
   socialLinks: {
-    instagram: '',
+    instagram: 'https://www.instagram.com/zoriq7?rpxt=MTE4dmU2cXk1N2o4bQ==',
     twitter: '',
     facebook: '',
   },
   footerText: '© 2026 ZORIQ Store. All rights reserved.',
-  announcement: '⚡ Welcome to ZORIQ! Enjoy Free Delivery on eligible orders.',
+  announcement: 'Welcome to the Zorq Web Store. Something new has just landed.',
 
   // Shipping Rules
-  freeShippingThreshold: 999,
-  standardShippingFee: 49,
-  deliveryTimeEstimate: '2 - 4 Business Days',
+  freeShippingThreshold: 599,
+  standardShippingFee: 40,
+  deliveryTimeEstimate: '5 - 9 days',
   serviceablePincodes: 'All India',
 
   // COD Settings
   codEnabled: true,
-  codFee: 0,
+  codFee: 20,
   minOrderCod: 0,
-  maxOrderCod: 25000,
+  maxOrderCod: 1499,
 
   // Online Payment Settings (Razorpay)
   razorpayEnabled: true,
