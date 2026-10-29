@@ -43,14 +43,14 @@ CREATE TABLE IF NOT EXISTS public.public_settings (
 
   -- Store Identity & Branding
   store_name TEXT NOT NULL DEFAULT 'ZORIQ',
-  tagline TEXT DEFAULT 'Premium Direct-to-Consumer Electronics & Lifestyle',
+  tagline TEXT DEFAULT 'Direct-to-Consumer Online Store',
   logo_url TEXT DEFAULT '/zoriq-logo.jpg',
-  contact_phone TEXT DEFAULT '+91 98765 43210',
-  contact_email TEXT DEFAULT 'help@zoriq.in',
-  address TEXT DEFAULT '12th Floor, Orion Tech Park, MG Road, Bengaluru, Karnataka 560001',
-  social_links JSONB DEFAULT '{"instagram":"https://instagram.com/zoriq.official","twitter":"","facebook":""}'::jsonb,
-  footer_text TEXT DEFAULT '© 2026 ZORIQ Official Store. All rights reserved.',
-  announcement TEXT DEFAULT '⚡ FLASH SALE: Free Delivery on orders over ₹999 + Instant Bank Discounts!',
+  contact_phone TEXT DEFAULT '',
+  contact_email TEXT DEFAULT '',
+  address TEXT DEFAULT '',
+  social_links JSONB DEFAULT '{"instagram":"","twitter":"","facebook":""}'::jsonb,
+  footer_text TEXT DEFAULT '© 2026 ZORIQ Store. All rights reserved.',
+  announcement TEXT DEFAULT '⚡ Welcome to ZORIQ! Enjoy Free Delivery on eligible orders.',
 
   -- Shipping Rules
   free_shipping_threshold NUMERIC NOT NULL DEFAULT 999,
@@ -65,8 +65,8 @@ CREATE TABLE IF NOT EXISTS public.public_settings (
   max_order_cod NUMERIC NOT NULL DEFAULT 25000,
 
   -- Online Payment Gateway (Razorpay Public Key)
-  razorpay_enabled BOOLEAN NOT NULL DEFAULT true,
-  razorpay_key_id TEXT DEFAULT 'rzp_live_TstUZQzK6D5kHP',
+  razorpay_enabled BOOLEAN NOT NULL DEFAULT false,
+  razorpay_key_id TEXT DEFAULT '',
 
   -- Enabled Payment Modes
   upi_enabled BOOLEAN NOT NULL DEFAULT true,
@@ -74,15 +74,15 @@ CREATE TABLE IF NOT EXISTS public.public_settings (
   netbanking_enabled BOOLEAN NOT NULL DEFAULT true,
 
   -- Tax, GST & Invoice Details
-  merchant_name TEXT DEFAULT 'ZORIQ Official Retails Pvt Ltd',
-  gst_number TEXT DEFAULT '29ABCDE1234F1Z5',
+  merchant_name TEXT DEFAULT 'ZORIQ',
+  gst_number TEXT DEFAULT '',
   tax_rate NUMERIC NOT NULL DEFAULT 0,
   invoice_prefix TEXT DEFAULT 'ZRQ-',
-  seller_upi_id TEXT DEFAULT 'zoriq@upi',
-  bank_name TEXT DEFAULT 'State Bank of India',
+  seller_upi_id TEXT DEFAULT '',
+  bank_name TEXT DEFAULT '',
   bank_account_number TEXT DEFAULT '',
   bank_ifsc TEXT DEFAULT '',
-  account_holder_name TEXT DEFAULT 'ZORIQ Official Store',
+  account_holder_name TEXT DEFAULT '',
   currency TEXT DEFAULT '₹'
 );
 
@@ -109,18 +109,18 @@ VALUES (
   'default',
   1,
   'ZORIQ',
-  'Premium Direct-to-Consumer Electronics & Lifestyle',
+  'Direct-to-Consumer Online Store',
   '/zoriq-logo.jpg',
-  '+91 98765 43210',
-  'help@zoriq.in',
-  '12th Floor, Orion Tech Park, MG Road, Bengaluru, Karnataka 560001',
+  '',
+  '',
+  '',
   999,
   49,
   true,
   0,
-  true,
-  'rzp_live_TstUZQzK6D5kHP',
-  'ZORIQ Official Retails Pvt Ltd',
+  false,
+  '',
+  'ZORIQ',
   '₹'
 )
 ON CONFLICT (id) DO NOTHING;
