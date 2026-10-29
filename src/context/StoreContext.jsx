@@ -186,7 +186,23 @@ export function StoreProvider({ children }) {
     // A. Initial Load from Supabase Postgres
     const loadInitialData = async () => {
       if (!supabase) {
-        setIsLoadingProducts(false);
+        try {
+          const [pRes, sRes] = await Promise.all([
+            fetch('/api/products').then((r) => r.json()).catch(() => null),
+            fetch('/api/settings').then((r) => r.json()).catch(() => null),
+          ]);
+          if (pRes?.products && isMounted) {
+            setProducts(pRes.products.map(mapProductFromDb).filter(Boolean));
+          }
+          if (sRes?.settings && isMounted) {
+            const mapped = mapSettingsFromDb(sRes.settings);
+            if (mapped) setSellerSettings(mapped);
+          }
+        } catch (e) {
+          console.warn('[Storefront Fallback] error:', e);
+        } finally {
+          if (isMounted) setIsLoadingProducts(false);
+        }
         return;
       }
 
