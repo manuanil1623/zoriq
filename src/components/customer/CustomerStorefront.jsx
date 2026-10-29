@@ -11,6 +11,7 @@ export default function CustomerStorefront() {
     setIsCartOpen,
     setSelectedProduct,
     setIsMyOrdersOpen,
+    setIsAdminLoginModalOpen,
   } = useStore();
 
   // Active Category filter
@@ -511,7 +512,13 @@ export default function CustomerStorefront() {
 
         {/* FOOTER & LARGE CROPPED TYPOGRAPHY */}
         <div className="foot label">
-          <span>© {sellerSettings?.storeName || 'ZORIQ'}</span>
+          <span
+            onClick={() => setIsAdminLoginModalOpen(true)}
+            className="cursor-pointer hover:text-[var(--ink)] transition-colors select-none"
+            title="ZORIQ"
+          >
+            © {sellerSettings?.storeName || 'ZORIQ'}
+          </span>
           <span>{sellerSettings?.tagline || 'Direct-to-Consumer Flagship Store'}</span>
         </div>
         <div className="crop" aria-hidden="true">

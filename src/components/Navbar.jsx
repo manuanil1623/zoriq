@@ -33,7 +33,37 @@ export default function Navbar() {
     setIsProductEditorOpen(true);
   };
 
-  // 1. CUSTOMER MODE: Exact Demo Navigation Bar
+  // Secret Owner Access: ?admin, #admin, or Ctrl+Shift+A
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const checkUrlSecret = () => {
+      const search = window.location.search;
+      const hash = window.location.hash;
+      if (search.includes('admin') || search.includes('owner') || hash === '#admin' || hash === '#owner') {
+        setIsAdminLoginModalOpen(true);
+      }
+    };
+
+    checkUrlSecret();
+    window.addEventListener('hashchange', checkUrlSecret);
+
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
+        e.preventDefault();
+        setIsAdminLoginModalOpen(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('hashchange', checkUrlSecret);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [setIsAdminLoginModalOpen]);
+
+  // 1. CUSTOMER MODE: Public Navigation Bar (Owner tab is hidden from customers)
   if (role === 'customer') {
     return (
       <nav className="zoriq-nav">
@@ -42,7 +72,18 @@ export default function Navbar() {
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           title="ZORIQ"
         >
-          ZORIQ<i>.</i>
+          ZORIQ
+          {/* Secret Discrete Trigger: Clicking the amber dot opens Owner PIN Login */}
+          <i
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsAdminLoginModalOpen(true);
+            }}
+            title="ZORIQ"
+            className="cursor-pointer hover:opacity-80 transition-opacity"
+          >
+            .
+          </i>
         </span>
 
         <div className="nav-r">
@@ -58,7 +99,8 @@ export default function Navbar() {
             </a>
           )}
 
-          {isAdminLoggedIn ? (
+          {/* Only visible when the Owner has already successfully authenticated */}
+          {isAdminLoggedIn && (
             <a
               onClick={() => setRole('seller')}
               style={{ color: 'var(--amber)', fontWeight: 600 }}
@@ -66,15 +108,6 @@ export default function Navbar() {
               className="cursor-pointer"
             >
               Admin
-            </a>
-          ) : (
-            <a
-              onClick={() => setIsAdminLoginModalOpen(true)}
-              style={{ opacity: 0.6 }}
-              title="Store Owner Access"
-              className="cursor-pointer"
-            >
-              Owner
             </a>
           )}
 
