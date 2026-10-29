@@ -1,223 +1,496 @@
-import React from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { useStore } from '../../context/StoreContext';
-import ZoriqOpeningHero from './ZoriqOpeningHero';
-import CategoryBar from './CategoryBar';
-import ProductCard from './ProductCard';
-import ZoriqLogo from '../ZoriqLogo';
-import { ShoppingBag, Search, Sparkles, Lock, Star } from 'lucide-react';
+import { ShoppingBag, ArrowRight } from 'lucide-react';
 
 export default function CustomerStorefront() {
   const {
     products,
-    selectedCategory,
-    searchQuery,
-    setSearchQuery,
-    sortBy,
     sellerSettings,
-    setIsAdminLoginModalOpen
+    cartCount,
+    addToCart,
+    setIsCartOpen,
+    setSelectedProduct,
+    setIsMyOrdersOpen,
   } = useStore();
 
-  // 1. Filter by category
-  let filtered = products.filter((prod) => {
-    if (selectedCategory === 'all') return true;
-    return prod.category === selectedCategory;
-  });
+  // Active Category filter
+  const [activeCat, setActiveCat] = useState('All');
 
-  // 2. Filter by search query
-  if (searchQuery.trim()) {
-    const q = searchQuery.toLowerCase().trim();
-    filtered = filtered.filter(
-      (prod) =>
-        prod.name.toLowerCase().includes(q) ||
-        prod.description.toLowerCase().includes(q) ||
-        (prod.sku && prod.sku.toLowerCase().includes(q)) ||
-        prod.category.toLowerCase().includes(q)
+  // Hero refs
+  const heroRef = useRef(null);
+  const plRef = useRef(null);
+  const prRef = useRef(null);
+  const wordRef = useRef(null);
+  const w1Ref = useRef(null);
+  const w2Ref = useRef(null);
+  const daRef = useRef(null);
+  const dbRef = useRef(null);
+  const introRef = useRef(null);
+
+  // Deck state
+  const deckRef = useRef(null);
+  const [topIndex, setTopIndex] = useState(0);
+  const isDraggingRef = useRef(false);
+  const startXRef = useRef(null);
+  const isBusyRef = useRef(false);
+
+  // Store description from settings (no fallback invented)
+  const storeDescription = (sellerSettings?.tagline || sellerSettings?.description || '').trim();
+
+  // Free shipping & delivery estimates from settings
+  const freeShipping = sellerSettings?.freeShippingThreshold || 599;
+  const shippingFee = sellerSettings?.standardShippingFee || 40;
+  const deliveryTime = sellerSettings?.deliveryTimeEstimate || '5–9 days';
+
+  // Products for the deck (up to 6 items)
+  const deckItems = useMemo(() => {
+    if (products.length > 0) {
+      return products.slice(0, 6);
+    }
+    return [
+      { id: 'd1', name: 'Everyday Backpack', category: 'Bags', price: 1299, image: '' },
+      { id: 'd2', name: 'Steel Water Bottle', category: 'Home', price: 549, image: '' },
+      { id: 'd3', name: 'Wireless Earbuds', category: 'Audio', price: 1799, image: '' },
+      { id: 'd4', name: 'Desk Lamp', category: 'Home', price: 899, image: '' },
+    ];
+  }, [products]);
+
+  // Derived categories with item counts
+  const categoriesList = useMemo(() => {
+    const counts = {};
+    products.forEach((p) => {
+      const cat = p.category ? p.category.charAt(0).toUpperCase() + p.category.slice(1) : 'General';
+      counts[cat] = (counts[cat] || 0) + 1;
+    });
+
+    const entries = Object.entries(counts).map(([k, v]) => [k, v]);
+    return [['All', products.length], ...entries];
+  }, [products]);
+
+  // Filtered products for grid
+  const filteredProducts = useMemo(() => {
+    if (activeCat === 'All') return products;
+    return products.filter((p) => {
+      const cat = p.category ? p.category.charAt(0).toUpperCase() + p.category.slice(1) : 'General';
+      return cat === activeCat;
+    });
+  }, [products, activeCat]);
+
+  // 1. SCROLL PORTAL ANIMATION (Exact formula from demo)
+  useEffect(() => {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) return;
+
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+    const portal = () => {
+      const hero = heroRef.current;
+      if (!hero) return;
+
+      const total = hero.offsetHeight - window.innerHeight;
+      if (total <= 0) return;
+
+      const p = clamp(-hero.getBoundingClientRect().top / total, 0, 1);
+
+      if (plRef.current) plRef.current.style.transform = `translateX(${-p * 105}%)`;
+      if (prRef.current) prRef.current.style.transform = `translateX(${p * 105}%)`;
+
+      if (wordRef.current) {
+        wordRef.current.style.transform = `scale(${1 + p * 0.28})`;
+        wordRef.current.style.letterSpacing = `${0.02 - p * 0.09}em`;
+        wordRef.current.style.opacity = 1 - clamp((p - 0.78) / 0.22, 0, 1);
+      }
+
+      if (w1Ref.current) w1Ref.current.style.transform = `translateX(${-p * 55}%)`;
+      if (w2Ref.current) w2Ref.current.style.transform = `translateX(${p * 55}%)`;
+
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+
+      if (daRef.current) daRef.current.style.transform = `translate(${-p * w * 0.42}px, ${-p * h * 0.34}px)`;
+      if (dbRef.current) dbRef.current.style.transform = `translate(${p * w * 0.42}px, ${p * h * 0.34}px)`;
+
+      if (introRef.current) introRef.current.style.opacity = 1 - clamp((p - 0.25) / 0.3, 0, 1);
+    };
+
+    window.addEventListener('scroll', portal, { passive: true });
+    window.addEventListener('resize', portal);
+    portal();
+
+    return () => {
+      window.removeEventListener('scroll', portal);
+      window.removeEventListener('resize', portal);
+    };
+  }, []);
+
+  // 2. INTERSECTION OBSERVER FOR .rv REVEALS
+  useEffect(() => {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const elements = document.querySelectorAll('.rv');
+
+    if (reduce || !('IntersectionObserver' in window)) {
+      elements.forEach((el) => el.classList.add('in'));
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('in');
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.12 }
     );
-  }
 
-  // 3. Sort
-  filtered = [...filtered].sort((a, b) => {
-    if (sortBy === 'price-low') return a.price - b.price;
-    if (sortBy === 'price-high') return b.price - a.price;
-    if (sortBy === 'rating') return (b.rating || 0) - (a.rating || 0);
-    return 0; // 'featured' retains natural catalog order
-  });
+    elements.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [products, activeCat]);
 
-  // Real featured products (only from real database items that have a badge)
-  const featuredProducts = (selectedCategory === 'all' && !searchQuery)
-    ? products.filter((p) => Boolean(p.seller_badge || p.sellerBadge)).slice(0, 4)
-    : [];
+  // 3. CARD DECK TOSS
+  const toss = (dir) => {
+    if (isBusyRef.current || deckItems.length === 0) return;
+    isBusyRef.current = true;
+
+    const deck = deckRef.current;
+    if (!deck) return;
+
+    const cards = deck.querySelectorAll('.card');
+    const currentCard = cards[topIndex];
+    const w = deck.offsetWidth;
+
+    if (currentCard) {
+      currentCard.classList.remove('drag');
+      currentCard.style.transform = `translate(${dir * w * 1.15}px, -24px) rotate(${dir * 20}deg)`;
+      currentCard.style.opacity = '0';
+    }
+
+    setTimeout(() => {
+      setTopIndex((prev) => (prev + 1) % deckItems.length);
+      isBusyRef.current = false;
+    }, 320);
+  };
+
+  // Pointer drag for card deck
+  const handlePointerDown = (e) => {
+    if (isBusyRef.current || deckItems.length === 0) return;
+    startXRef.current = e.clientX;
+    isDraggingRef.current = true;
+    e.currentTarget.setPointerCapture(e.pointerId);
+
+    const cards = deckRef.current?.querySelectorAll('.card');
+    if (cards && cards[topIndex]) {
+      cards[topIndex].classList.add('drag');
+    }
+  };
+
+  const handlePointerMove = (e) => {
+    if (!isDraggingRef.current || startXRef.current === null) return;
+    const dx = e.clientX - startXRef.current;
+    const cards = deckRef.current?.querySelectorAll('.card');
+    if (cards && cards[topIndex]) {
+      cards[topIndex].style.transform = `translate(${dx}px, 0) rotate(${dx * 0.06}deg) scale(1.02)`;
+    }
+  };
+
+  const handlePointerUp = (e) => {
+    if (!isDraggingRef.current || startXRef.current === null) return;
+    const dx = e.clientX - startXRef.current;
+    startXRef.current = null;
+    isDraggingRef.current = false;
+
+    const deck = deckRef.current;
+    if (deck && Math.abs(dx) > deck.offsetWidth * 0.1) {
+      toss(dx > 0 ? 1 : -1);
+    } else {
+      const cards = deck?.querySelectorAll('.card');
+      if (cards && cards[topIndex]) {
+        cards[topIndex].classList.remove('drag');
+        // Reset card back to default stack pos
+        cards[topIndex].style.transform = 'translate(0, 0) scale(1) rotate(0deg)';
+      }
+    }
+  };
+
+  // Keyboard left/right for deck
+  const handleKeyDown = (e) => {
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      toss(1);
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      toss(-1);
+    }
+  };
+
+  const handleScrollToShop = () => {
+    const shopEl = document.getElementById('shop');
+    if (shopEl) {
+      shopEl.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
 
   return (
-    <div className="pb-16 animate-in fade-in">
+    <div className="zoriq-storefront-wrapper">
       
-      {/* Cinematic ZORIQ Opening Hero with Split Word & Parting Curtains */}
-      <ZoriqOpeningHero />
+      {/* 1. HERO OPENING WITH STAGE & PANELS */}
+      <header className="hero" id="hero" ref={heroRef}>
+        <div className="stage">
+          {/* Left and right dark panels */}
+          <div className="panel l" id="pl" ref={plRef} />
+          <div className="panel r" id="pr" ref={prRef} />
 
-      {/* Featured Products Spotlight (Only if real products with badges exist in database) */}
-      {featuredProducts.length > 0 && (
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-amber-500" />
-              <h2 className="text-base sm:text-lg font-bold text-gray-900 font-syne tracking-tight">
-                Featured Highlights
-              </h2>
-            </div>
-            <span className="text-xs text-gray-400 font-medium">Curated directly from store catalog</span>
+          {/* Accent flying dots */}
+          <span className="dot a" id="da" ref={daRef} />
+          <span className="dot b" id="db" ref={dbRef} />
+
+          {/* Corner labels */}
+          <div className="corner t label">
+            <span className="demo-tag">ZORIQ Store</span>
+            <span>Free shipping over ₹{freeShipping}</span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {featuredProducts.map((product) => (
-              <ProductCard key={`featured-${product.id}`} product={product} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Category Pills & Sort Bar */}
-      <CategoryBar />
-
-      {/* Products Grid Section */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
-        {/* Results Info Bar */}
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg sm:text-xl font-extrabold text-gray-900 tracking-tight">
-              {searchQuery ? `Search results for "${searchQuery}"` : 'Handpicked Products'}
-            </h2>
-            <span className="text-xs bg-gray-100 text-gray-600 font-bold px-2 py-0.5 rounded-full">
-              {filtered.length} {filtered.length === 1 ? 'item' : 'items'}
-            </span>
-          </div>
-
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="text-xs text-indigo-600 hover:underline font-semibold"
-            >
-              Clear Search
-            </button>
-          )}
-        </div>
-
-        {/* Empty State */}
-        {products.length === 0 ? (
-          <div className="bg-white rounded-3xl border border-gray-200 p-12 text-center max-w-md mx-auto my-8 shadow-xs">
-            <div className="w-16 h-16 bg-indigo-50 text-indigo-500 rounded-full flex items-center justify-center mx-auto mb-3">
-              <ShoppingBag className="w-8 h-8" />
-            </div>
-            <h3 className="text-base font-bold text-gray-900 mb-1">
-              Store Catalog Coming Soon
-            </h3>
-            <p className="text-xs text-gray-500 leading-relaxed">
-              New products will be added by the store owner soon. Please check back shortly!
-            </p>
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="bg-white rounded-3xl border border-gray-200 p-12 text-center max-w-md mx-auto my-8 shadow-xs">
-            <div className="w-16 h-16 bg-indigo-50 text-indigo-500 rounded-full flex items-center justify-center mx-auto mb-3">
-              <Search className="w-8 h-8" />
-            </div>
-            <h3 className="text-base font-bold text-gray-900 mb-1">
-              No matching products found
-            </h3>
-            <p className="text-xs text-gray-500 mb-5 leading-relaxed">
-              We couldn't find any products matching your search or filters.
-            </p>
-            <button
-              onClick={() => {
-                setSearchQuery('');
-              }}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors"
-            >
-              Show All Products
-            </button>
-          </div>
-        ) : (
-          /* Products Grid */
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-            {filtered.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-        )}
-
-      </main>
-
-      {/* Trust Badges Footer Bar */}
-      <footer className="mt-16 border-t border-gray-200 bg-white py-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-center md:text-left">
-            <div>
-              <div className="flex items-center gap-2 justify-center md:justify-start mb-2">
-                <span className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">
-                  ₹
-                </span>
-                <span className="font-bold text-gray-900 text-sm">Razorpay Online</span>
-              </div>
-              <p className="text-xs text-gray-500">
-                Verified instant bank payment via UPI, Cards, NetBanking, and Wallets.
-              </p>
+          {/* Center ZORIQ + Small store text */}
+          <div className="center">
+            <div className="word" id="word" ref={wordRef}>
+              <span id="w1" ref={w1Ref}>ZOR</span>
+              <span id="w2" ref={w2Ref}>IQ</span>
             </div>
 
-            <div>
-              <div className="flex items-center gap-2 justify-center md:justify-start mb-2">
-                <span className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-sm">
-                  🚚
-                </span>
-                <span className="font-bold text-gray-900 text-sm">Cash on Delivery</span>
-              </div>
-              <p className="text-xs text-gray-500">
-                Pay on arrival at your doorstep in cash or with delivery agent's scanner.
-              </p>
-            </div>
-
-            <div>
-              <div className="flex items-center gap-2 justify-center md:justify-start mb-2">
-                <span className="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center font-bold text-sm">
-                  ⚡
-                </span>
-                <span className="font-bold text-gray-900 text-sm">Fast Dispatch</span>
-              </div>
-              <p className="text-xs text-gray-500">
-                Orders dispatched within 24 hours with live tracking ID and updates.
-              </p>
-            </div>
-
-            <div>
-              <div className="flex items-center gap-2 justify-center md:justify-start mb-2">
-                <span className="w-8 h-8 rounded-lg bg-purple-600 text-white flex items-center justify-center font-bold text-sm">
-                  🛡️
-                </span>
-                <span className="font-bold text-gray-900 text-sm">Quality Guaranteed</span>
-              </div>
-              <p className="text-xs text-gray-500">
-                100% brand authentic products with direct merchant customer support.
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-8 pt-6 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-400 gap-4">
-            <div className="flex items-center gap-3">
-              <ZoriqLogo size="sm" />
-              <span>© {new Date().getFullYear()} ZORIQ. All rights reserved.</span>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className="font-semibold text-gray-500">Shop More. Live Better.</span>
-              <button
-                onClick={() => setIsAdminLoginModalOpen(true)}
-                className="text-gray-400 hover:text-indigo-600 transition-colors flex items-center gap-1 font-medium"
-                title="Store Owner Portal"
+            <div id="intro" ref={introRef}>
+              {storeDescription && (
+                <p className="desc fade-in">
+                  {storeDescription}
+                </p>
+              )}
+              <div
+                className="cue label fade-in"
+                onClick={handleScrollToShop}
+                role="button"
+                tabIndex={0}
+                aria-label="Scroll to shop"
               >
-                <Lock className="w-3 h-3" />
-                <span>Owner Login</span>
+                Scroll to shop
+              </div>
+            </div>
+          </div>
+
+          <div className="corner b label">
+            <span>Delivery in {deliveryTime}</span>
+            <span>Scroll</span>
+          </div>
+        </div>
+      </header>
+
+      {/* 2. MAIN STORE CONTENT */}
+      <main className="store" id="shop">
+        
+        {/* NEW IN THE STORE SECTION: DECK */}
+        <section className="wrap two">
+          <div className="rv">
+            <h2 className="store-h2">New in the store</h2>
+            <p className="lede">
+              Drag a card aside to see the next product. Select any item to view details or add directly to your cart.
+            </p>
+            <div className="btns">
+              <a className="btn main" href="#all">
+                Shop all
+              </a>
+              <button className="btn" type="button" onClick={() => setIsCartOpen(true)}>
+                View cart ({cartCount})
               </button>
             </div>
           </div>
+
+          <div className="deck-box rv">
+            <div
+              className="deck"
+              id="deck"
+              ref={deckRef}
+              tabIndex={0}
+              aria-label="Product deck. Use left and right arrow keys or swipe."
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerUp}
+              onKeyDown={handleKeyDown}
+            >
+              {deckItems.map((it, i) => {
+                const n = deckItems.length;
+                const k = (i - topIndex + n) % n;
+                const zIndex = n - k;
+                const opacity = k > 2 ? 0 : 1;
+                const transform = `translate(${k * 12}px, ${-k * 9}px) scale(${1 - k * 0.045}) rotate(${k * 1.8}deg)`;
+
+                return (
+                  <div
+                    key={it.id || `deck-${i}`}
+                    className="card"
+                    style={{
+                      zIndex,
+                      opacity,
+                      transform,
+                    }}
+                    onClick={() => {
+                      if (it.id && setSelectedProduct) setSelectedProduct(it);
+                    }}
+                  >
+                    <div className="w-full flex-1 flex flex-col justify-center items-center">
+                      {it.image ? (
+                        <img
+                          src={it.image}
+                          alt={it.name}
+                          className="max-h-40 w-auto object-contain rounded-lg drop-shadow-md"
+                        />
+                      ) : (
+                        <div className="glyph">
+                          {it.name ? it.name.charAt(0).toUpperCase() : 'Z'}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <h3>{it.name}</h3>
+                      <div className="price">₹{it.price}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="hint">
+              <span className="label" id="hint">Drag or use ← →</span>
+              <div className="dots" id="dots">
+                {deckItems.map((_, i) => (
+                  <b key={i} className={i === topIndex ? 'on' : ''} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* CATEGORIES AND PRODUCT GRID */}
+        <section className="wrap" style={{ paddingTop: 0 }} id="all">
+          <div className="rv">
+            <span className="label">Categories</span>
+            
+            {/* Category Rows */}
+            <div className="rows" id="rows">
+              {categoriesList.map(([catName, count], idx) => (
+                <button
+                  key={catName}
+                  type="button"
+                  className={`row ${catName === activeCat ? 'on' : ''}`}
+                  onClick={() => setActiveCat(catName)}
+                >
+                  <span className="label">{idx === 0 ? 'Everything' : 'Category'}</span>
+                  <span className="name">{catName}</span>
+                  <span className="count">{count} {count === 1 ? 'item' : 'items'}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Products Grid */}
+            {products.length === 0 ? (
+              <div className="my-16 text-center border border-[var(--line)] rounded-2xl p-12 bg-[var(--ground2)]">
+                <ShoppingBag className="w-10 h-10 text-[var(--ink2)] mx-auto mb-3 opacity-60" />
+                <h3 className="text-lg font-bold text-[var(--ink)] mb-1">
+                  Catalog Updating
+                </h3>
+                <p className="text-xs text-[var(--ink2)] max-w-sm mx-auto">
+                  New collections are being added. Check back shortly or log in to the owner portal to publish products!
+                </p>
+              </div>
+            ) : filteredProducts.length === 0 ? (
+              <div className="my-12 text-center border border-[var(--line)] rounded-2xl p-8 bg-[var(--ground2)]">
+                <p className="text-sm text-[var(--ink2)]">
+                  No products found in category "{activeCat}".
+                </p>
+              </div>
+            ) : (
+              <div className="grid" id="grid">
+                {filteredProducts.map((product) => (
+                  <div key={product.id} className="pc">
+                    {product.image ? (
+                      <div className="h-28 w-full flex items-center justify-center mb-auto overflow-hidden">
+                        <img
+                          src={product.image}
+                          alt={product.name}
+                          className="max-h-full max-w-full object-contain"
+                        />
+                      </div>
+                    ) : (
+                      <div className="glyph">
+                        {product.name ? product.name.charAt(0).toUpperCase() : 'Z'}
+                      </div>
+                    )}
+
+                    <h3>{product.name}</h3>
+                    <div className="price">₹{product.price}</div>
+                    
+                    <button
+                      type="button"
+                      onClick={() => addToCart(product)}
+                      aria-label={`Add ${product.name} to cart`}
+                    >
+                      Add to cart
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+          </div>
+        </section>
+
+        {/* DELIVERY AND PAYMENT INFO TABLE */}
+        <section className="wrap" style={{ paddingTop: 0 }} id="info">
+          <div className="rv">
+            <h2 className="store-h2">Delivery and payment</h2>
+            <table className="tbl">
+              <thead>
+                <tr className="label">
+                  <th>Topic</th>
+                  <th>Detail</th>
+                  <th>Note</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Shipping</td>
+                  <td>₹{shippingFee} standard</td>
+                  <td>Free over ₹{freeShipping}</td>
+                </tr>
+                <tr>
+                  <td>Delivery</td>
+                  <td>{deliveryTime}</td>
+                  <td>Across India</td>
+                </tr>
+                <tr>
+                  <td>Payments</td>
+                  <td>Razorpay, COD</td>
+                  <td>UPI, cards, netbanking</td>
+                </tr>
+              </tbody>
+            </table>
+            <p className="label" style={{ marginTop: '18px' }}>
+              All rules are synced live from your store settings.
+            </p>
+          </div>
+        </section>
+
+        {/* FOOTER & LARGE CROPPED TYPOGRAPHY */}
+        <div className="foot label">
+          <span>© {sellerSettings?.storeName || 'ZORIQ'}</span>
+          <span>{sellerSettings?.tagline || 'Direct-to-Consumer Flagship Store'}</span>
         </div>
-      </footer>
+        <div className="crop" aria-hidden="true">
+          <div>{sellerSettings?.storeName || 'ZORIQ'}</div>
+        </div>
+
+      </main>
 
     </div>
   );

@@ -16,11 +16,11 @@ function StoreApp() {
   const { role } = useStore();
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col text-gray-900 selection:bg-indigo-500 selection:text-white">
-      {/* Universal Navbar with Role Switcher */}
+    <div className="min-h-screen bg-[#0A0C0E] flex flex-col text-[var(--ink)] selection:bg-[#E8913C] selection:text-black">
+      {/* Universal Navbar */}
       <Navbar />
 
-      {/* Main Content: Switches dynamically between Customer Storefront and Seller Portal */}
+      {/* Main Content */}
       <div className="flex-1">
         {role === 'customer' ? <CustomerStorefront /> : <SellerPortal />}
       </div>
