@@ -4,7 +4,7 @@ import {
   sendJson,
   requireAdminAuth
 } from './_lib/auth.js';
-import { getSupabaseAdmin } from './_lib/supabaseAdmin.js';
+import { getSupabaseAdmin, isSupabaseConfigured } from './_lib/supabaseAdmin.js';
 
 function mapDbToPublicSettings(row) {
   if (!row) return null;
@@ -64,6 +64,26 @@ export default async function handler(req, res) {
 
   if (req.method === 'OPTIONS') {
     return sendJson(res, 200, { ok: true });
+  }
+
+  // If Supabase credentials are not yet configured in environment variables
+  if (!isSupabaseConfigured()) {
+    if (req.method === 'GET') {
+      return sendJson(res, 200, { settings: null, version: 1, supabaseMissing: true });
+    }
+    if (req.method === 'POST' || req.method === 'PUT') {
+      const isAuthorized = await requireAdminAuth(req, res);
+      if (!isAuthorized) return;
+      const body = await parseJsonBody(req);
+      const payload = body.data || body;
+      return sendJson(res, 200, {
+        success: true,
+        settings: mapDbToPublicSettings(payload),
+        version: 1,
+        supabaseMissing: true,
+        message: 'Settings saved in local memory. (Notice: Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to environment variables to sync across devices).'
+      });
+    }
   }
 
   const supabase = getSupabaseAdmin();

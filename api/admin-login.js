@@ -6,7 +6,7 @@ import {
   verifyPassword,
   signAdminToken
 } from './_lib/auth.js';
-import { getSupabaseAdmin } from './_lib/supabaseAdmin.js';
+import { getSupabaseAdmin, isSupabaseConfigured } from './_lib/supabaseAdmin.js';
 
 export default async function handler(req, res) {
   setCorsHeaders(res);
@@ -27,6 +27,27 @@ export default async function handler(req, res) {
       return sendJson(res, 400, { error: 'Admin Password / PIN is required.' });
     }
 
+    // A. Fallback if Supabase credentials are not yet added to environment variables
+    if (!isSupabaseConfigured()) {
+      const initialPin = (process.env.ADMIN_PIN || '7784').trim();
+
+      if (inputPassword !== initialPin) {
+        return sendJson(res, 401, {
+          error: 'Incorrect Admin PIN. (Check your Vercel ADMIN_PIN environment variable).'
+        });
+      }
+
+      const token = signAdminToken(1);
+      return sendJson(res, 200, {
+        success: true,
+        token,
+        isFirstTime: true,
+        supabaseMissing: true,
+        message: 'Logged in! Notice: Please add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to your environment variables to enable multi-device sync.'
+      });
+    }
+
+    // B. Standard flow with Supabase configured
     const supabase = getSupabaseAdmin();
 
     // Query private_settings table for password hash

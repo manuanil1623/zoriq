@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useStore } from '../../context/StoreContext';
+import { supabase } from '../../services/supabase';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   CreditCard,
@@ -267,12 +268,38 @@ export default function StoreSettings() {
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm">
-            <Zap className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
-            <span>Supabase Realtime Live (v{sellerSettings.version || 1})</span>
-          </span>
+          {supabase ? (
+            <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm">
+              <Zap className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+              <span>Supabase Realtime Live (v{sellerSettings.version || 1})</span>
+            </span>
+          ) : (
+            <span className="text-xs bg-amber-100 text-amber-900 font-bold px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+              <span>Local Offline Mode (Supabase Keys Not Added Yet)</span>
+            </span>
+          )}
         </div>
       </div>
+
+      {/* Supabase Missing Configuration Banner */}
+      {!supabase && (
+        <div className="p-4 bg-amber-50 border-2 border-amber-300 rounded-2xl text-amber-950 space-y-2 text-xs animate-in fade-in">
+          <div className="flex items-center gap-2 font-bold text-sm text-amber-900">
+            <AlertTriangle className="w-4 h-4 text-amber-600" />
+            <span>Action Required to Sync Across Devices: Connect Supabase</span>
+          </div>
+          <p className="text-[11px] text-amber-800 leading-relaxed">
+            Your store is currently running in local offline mode because Supabase environment variables are not set yet.
+            To allow your phone, laptop, and customers to share the same products, orders, and settings:
+          </p>
+          <ol className="list-decimal list-inside text-[11px] space-y-1 font-medium text-amber-900">
+            <li>Create a free project at <a href="https://supabase.com" target="_blank" rel="noreferrer" className="underline font-bold text-indigo-700">supabase.com</a>.</li>
+            <li>Run the SQL script from <code>supabase/schema.sql</code> in the Supabase SQL editor.</li>
+            <li>Add <code>VITE_SUPABASE_URL</code>, <code>VITE_SUPABASE_ANON_KEY</code>, and <code>SUPABASE_SERVICE_ROLE_KEY</code> to your Vercel Project Settings (or local <code>.env.local</code> file).</li>
+          </ol>
+        </div>
+      )}
 
       {/* CONFLICT BANNER: Triggered if another device saved newer settings */}
       {hasSettingsConflict && (

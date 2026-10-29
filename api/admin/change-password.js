@@ -7,7 +7,7 @@ import {
   verifyPassword,
   signAdminToken
 } from '../_lib/auth.js';
-import { getSupabaseAdmin } from '../_lib/supabaseAdmin.js';
+import { getSupabaseAdmin, isSupabaseConfigured } from '../_lib/supabaseAdmin.js';
 
 export default async function handler(req, res) {
   setCorsHeaders(res);
@@ -39,6 +39,19 @@ export default async function handler(req, res) {
 
     if (confirmPassword && newPassword !== confirmPassword) {
       return sendJson(res, 400, { error: 'New password and confirmation do not match.' });
+    }
+
+    // Fallback if Supabase is not configured yet
+    if (!isSupabaseConfigured()) {
+      const isCurrentValid = currentPassword === (process.env.ADMIN_PIN || '7784').trim();
+      if (!isCurrentValid) {
+        return sendJson(res, 400, { error: 'Current password does not match.' });
+      }
+      return sendJson(res, 200, {
+        success: true,
+        token: signAdminToken(2),
+        message: 'Password accepted in local session! Note: Please add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to environment variables to permanently store the hashed password in the cloud database.'
+      });
     }
 
     const supabase = getSupabaseAdmin();

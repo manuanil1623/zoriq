@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { getSupabaseAdmin } from './supabaseAdmin.js';
+import { getSupabaseAdmin, isSupabaseConfigured } from './supabaseAdmin.js';
 
 const TOKEN_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -114,26 +114,28 @@ export async function requireAdminAuth(req, res) {
     return false;
   }
 
-  // Check if tokenVersion matches current token_version in private_settings
-  try {
-    const supabase = getSupabaseAdmin();
-    const { data: privateSettings, error } = await supabase
-      .from('private_settings')
-      .select('token_version')
-      .eq('id', 'default')
-      .maybeSingle();
+  // Check if tokenVersion matches current token_version in private_settings if database is configured
+  if (isSupabaseConfigured()) {
+    try {
+      const supabase = getSupabaseAdmin();
+      const { data: privateSettings, error } = await supabase
+        .from('private_settings')
+        .select('token_version')
+        .eq('id', 'default')
+        .maybeSingle();
 
-    if (!error && privateSettings && privateSettings.token_version) {
-      if (Number(payload.tokenVersion) < Number(privateSettings.token_version)) {
-        sendJson(res, 401, {
-          error: 'Session expired: Admin password was changed from another device. Please log in again with the new password.',
-          sessionInvalidated: true,
-        });
-        return false;
+      if (!error && privateSettings && privateSettings.token_version) {
+        if (Number(payload.tokenVersion) < Number(privateSettings.token_version)) {
+          sendJson(res, 401, {
+            error: 'Session expired: Admin password was changed from another device. Please log in again with the new password.',
+            sessionInvalidated: true,
+          });
+          return false;
+        }
       }
+    } catch (err) {
+      // If DB check fails transiently, HMAC signature check above already passed
     }
-  } catch (err) {
-    // If DB check fails transiently, HMAC signature check above already passed
   }
 
   return true;
