@@ -51,8 +51,8 @@ export default function InvoiceModal() {
               <ZoriqLogo size="sm" className="mb-2" />
               <p className="text-xs text-gray-500 mt-1">
                 {sellerSettings.merchantName || 'ZORIQ Official'}<br />
-                GSTIN: 29ABCDE1234F1Z5 • Support: {sellerSettings.contactEmail}<br />
-                UPI ID: <span className="font-mono font-medium">{sellerSettings.sellerUpiId}</span>
+                {sellerSettings.gstNumber ? `GSTIN: ${sellerSettings.gstNumber} • ` : ''}Support: {sellerSettings.contactEmail || 'help@zoriq.in'}<br />
+                {sellerSettings.sellerUpiId ? <>UPI ID: <span className="font-mono font-medium">{sellerSettings.sellerUpiId}</span></> : null}
                 {sellerSettings.bankAccountNumber ? (
                   <span> • Bank: {sellerSettings.bankName} (A/C: {sellerSettings.bankAccountNumber}, IFSC: {sellerSettings.bankIfsc})</span>
                 ) : null}

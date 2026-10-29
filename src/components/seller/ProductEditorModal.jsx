@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useStore } from '../../context/StoreContext';
 import { PRESET_IMAGES } from '../../data/initialData';
+import { adminUploadImage } from '../../services/supabase';
 import {
   X,
   Plus,
@@ -12,7 +13,9 @@ import {
   Layers,
   Sparkles,
   Info,
-  Banknote
+  Banknote,
+  Upload,
+  Loader2
 } from 'lucide-react';
 
 export default function ProductEditorModal() {
@@ -22,10 +25,13 @@ export default function ProductEditorModal() {
     productToEdit,
     setProductToEdit,
     addProduct,
-    updateProduct
+    updateProduct,
+    adminToken,
+    addToast
   } = useStore();
 
   const isEditing = Boolean(productToEdit);
+  const fileInputRef = useRef(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -42,6 +48,8 @@ export default function ProductEditorModal() {
   });
 
   const [errors, setErrors] = useState({});
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (productToEdit) {
@@ -92,18 +100,49 @@ export default function ProductEditorModal() {
     return Object.keys(errs).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleImageFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please select a valid image file (JPEG, PNG, WebP).');
+      return;
+    }
+
+    setIsUploadingImage(true);
+    try {
+      const publicUrl = await adminUploadImage(file, adminToken);
+      if (publicUrl) {
+        setFormData((prev) => ({ ...prev, image: publicUrl }));
+        if (addToast) addToast('Image uploaded to Supabase Storage!', 'success');
+      }
+    } catch (err) {
+      console.error('Image upload failed:', err);
+      alert('Image upload failed: ' + err.message);
+    } finally {
+      setIsUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validate()) return;
 
-    if (isEditing) {
-      updateProduct(productToEdit.id, formData);
-    } else {
-      addProduct(formData);
+    setIsSaving(true);
+    try {
+      if (isEditing) {
+        await updateProduct(productToEdit.id, formData);
+      } else {
+        await addProduct(formData);
+      }
+      setIsProductEditorOpen(false);
+      setProductToEdit(null);
+    } catch (err) {
+      // toast shown in context
+    } finally {
+      setIsSaving(false);
     }
-
-    setIsProductEditorOpen(false);
-    setProductToEdit(null);
   };
 
   const discountPercent = formData.originalPrice && Number(formData.originalPrice) > Number(formData.price)
@@ -305,11 +344,41 @@ export default function ProductEditorModal() {
             </div>
           </div>
 
-          {/* Section 3: Product Image URL & Presets */}
+          {/* Section 3: Product Image URL & Upload */}
           <div className="space-y-2">
-            <label className="block font-semibold text-gray-700">
-              Product Image URL *
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="block font-semibold text-gray-700">
+                Product Image *
+              </label>
+              <div>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleImageFileUpload}
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  disabled={isUploadingImage}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold border border-indigo-200 transition-colors disabled:opacity-50"
+                >
+                  {isUploadingImage ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Uploading to Supabase...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Upload Device Image</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
             <div className="flex gap-3 items-center">
               <div className="w-14 h-14 rounded-xl bg-gray-100 border border-gray-200 overflow-hidden flex-shrink-0 flex items-center justify-center">
                 {formData.image ? (
@@ -322,7 +391,7 @@ export default function ProductEditorModal() {
                 type="url"
                 value={formData.image}
                 onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-                placeholder="https://images.unsplash.com/photo-..."
+                placeholder="https://... or upload image above"
                 className={`flex-1 px-3 py-2 text-xs bg-gray-50 border rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
                   errors.image ? 'border-rose-400' : 'border-gray-200'
                 }`}
@@ -390,20 +459,31 @@ export default function ProductEditorModal() {
           <div className="pt-3 border-t border-gray-100 flex items-center justify-end gap-2">
             <button
               type="button"
+              disabled={isSaving || isUploadingImage}
               onClick={() => {
                 setIsProductEditorOpen(false);
                 setProductToEdit(null);
               }}
-              className="px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition-colors"
+              className="px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold shadow-md shadow-emerald-600/30 transition-all flex items-center gap-1.5 active:scale-95"
+              disabled={isSaving || isUploadingImage}
+              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold shadow-md shadow-emerald-600/30 transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-60"
             >
-              <Check className="w-4 h-4" />
-              <span>{isEditing ? 'Save Product Changes' : 'Publish Product to Store'}</span>
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4" />
+                  <span>{isEditing ? 'Save Product Changes' : 'Publish Product to Store'}</span>
+                </>
+              )}
             </button>
           </div>
 

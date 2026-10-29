@@ -5,8 +5,6 @@ import {
   KeyRound,
   X,
   ArrowRight,
-  ShieldAlert,
-  ShieldCheck,
   Eye,
   EyeOff
 } from 'lucide-react';
@@ -16,16 +14,16 @@ export default function AdminLoginModal() {
     isAdminLoginModalOpen,
     setIsAdminLoginModalOpen,
     loginAdmin,
-    sellerSettings
   } = useStore();
 
   const [pin, setPin] = useState('');
   const [showPin, setShowPin] = useState(false);
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isAdminLoginModalOpen) return null;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -34,9 +32,12 @@ export default function AdminLoginModal() {
       return;
     }
 
-    const success = loginAdmin(pin);
-    if (!success) {
-      setError('Incorrect security PIN. Please try again.');
+    setIsSubmitting(true);
+    const result = await loginAdmin(pin.trim());
+    setIsSubmitting(false);
+
+    if (!result?.success) {
+      setError(result?.error || 'Incorrect security PIN. Please try again.');
     } else {
       setPin('');
     }
@@ -75,25 +76,24 @@ export default function AdminLoginModal() {
           
           <div className="text-center space-y-1">
             <p className="text-xs text-gray-600">
-              Enter your secret PIN to access product catalog, orders, and store settings.
+              Enter your password to access your products catalog, orders, and store settings.
             </p>
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-              Admin Security PIN
+              Admin Password / PIN
             </label>
             <div className="relative">
               <KeyRound className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type={showPin ? 'text' : 'password'}
-                maxLength={8}
                 value={pin}
                 onChange={(e) => {
                   setPin(e.target.value);
                   setError('');
                 }}
-                placeholder="Enter PIN"
+                placeholder="Enter password or PIN"
                 autoFocus
                 className="w-full pl-9 pr-10 py-2.5 text-center text-sm font-mono tracking-widest bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
               />
@@ -115,14 +115,15 @@ export default function AdminLoginModal() {
 
           <button
             type="submit"
-            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs shadow-md shadow-indigo-600/30 transition-all flex items-center justify-center gap-1.5 active:scale-95"
+            disabled={isSubmitting}
+            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-60 text-white font-bold text-xs shadow-md shadow-indigo-600/30 transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
           >
-            <span>Unlock Admin Portal</span>
+            <span>{isSubmitting ? 'Verifying with Server...' : 'Unlock Admin Portal'}</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
 
           <p className="text-[10px] text-gray-400 text-center">
-            You can change your PIN in Store & Payment Settings once logged in.
+            Admin credentials are cryptographically verified server-side.
           </p>
 
         </form>

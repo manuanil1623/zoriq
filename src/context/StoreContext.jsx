@@ -1,235 +1,63 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { DEFAULT_SELLER_SETTINGS } from '../data/initialData';
-import { fetchCloudStore, pushCloudStore, exportCatalogToJson, parseCatalogFromJson } from '../services/cloudSync';
+import {
+  supabase,
+  mapProductFromDb,
+  mapSettingsFromDb,
+  adminLogin,
+  adminVerifyToken,
+  adminAddProduct,
+  adminUpdateProduct,
+  adminDeleteProduct,
+  adminImportProducts,
+  adminUpdateSettings,
+  adminUpdateSettingsSection,
+  adminChangePassword,
+  adminGetOrders,
+  adminUpdateOrderStatus,
+  createCustomerOrder,
+  getCustomerOrders,
+} from '../services/supabase';
 
 const StoreContext = createContext();
 
 const STORAGE_KEYS = {
-  PRODUCTS: 'nexmart_products_v2',
-  ORDERS: 'nexmart_live_orders',
-  SETTINGS: 'nexmart_settings_v1',
   CART: 'nexmart_cart_v1',
-  DELETED_IDS: 'nexmart_deleted_ids',
+  ADMIN_TOKEN: 'zoriq_admin_session_token',
+  CUSTOMER_ORDER_IDS: 'zoriq_my_order_ids',
 };
 
-// Precise identification of demo items to ensure real user items are never filtered
-const DEMO_PRODUCT_IDS = new Set([
-  'prod-1', 'prod-2', 'prod-3', 'prod-4', 'prod-5', 'prod-6', 'prod-7', 'prod-8'
-]);
-
-const isDemoProduct = (p) => {
-  if (!p) return false;
-  const id = String(p.id || '');
-  if (DEMO_PRODUCT_IDS.has(id)) return true;
-  if (/^prod-[1-8]$/.test(id)) return true;
-  if (id.startsWith('starter-')) return true;
-  const name = String(p.name || '').toLowerCase();
-  if (
-    name.includes('acousticpro') ||
-    name.includes('pulsefit') ||
-    name.includes('hypercharge') ||
-    name.includes('aerostride') ||
-    name.includes('artisan glass') ||
-    name.includes('heritage full-grain')
-  ) {
-    return true;
-  }
-  return false;
-};
-
-// Immediate cleanup of any legacy demo orders and products stored in browser
+// Immediate cleanup of old legacy localStorage products/orders/sync items
 try {
+  localStorage.removeItem('nexmart_products_v2');
+  localStorage.removeItem('nexmart_live_orders');
+  localStorage.removeItem('nexmart_settings_v1');
+  localStorage.removeItem('nexmart_deleted_ids');
   localStorage.removeItem('nexmart_orders_v1');
   localStorage.removeItem('nexmart_orders_v2');
-  localStorage.removeItem('nexmart_live_orders');
-  const storedProds = localStorage.getItem('nexmart_products_v2');
-  if (storedProds) {
-    const parsed = JSON.parse(storedProds);
-    if (Array.isArray(parsed)) {
-      const cleaned = parsed.filter((p) => !isDemoProduct(p));
-      localStorage.setItem('nexmart_products_v2', JSON.stringify(cleaned));
-    }
-  }
 } catch {}
 
 export function StoreProvider({ children }) {
-  // 1. Role State: 'customer' or 'seller' (protected by admin auth)
-  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(() => {
+  // 1. Admin Authentication (Token-based, verified on server)
+  const [adminToken, setAdminToken] = useState(() => {
     try {
-      return localStorage.getItem('nexmart_admin_auth') === 'true';
+      return localStorage.getItem(STORAGE_KEYS.ADMIN_TOKEN) || '';
     } catch {
-      return false;
+      return '';
     }
   });
 
-  const [role, setRole] = useState(() => {
-    try {
-      const isAuth = localStorage.getItem('nexmart_admin_auth') === 'true';
-      return isAuth ? 'seller' : 'customer';
-    } catch {
-      return 'customer';
-    }
-  });
-
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(Boolean(adminToken));
+  const [role, setRole] = useState(() => (adminToken ? 'seller' : 'customer'));
   const [isAdminLoginModalOpen, setIsAdminLoginModalOpen] = useState(false);
 
-  // 2. Products State with LocalStorage & Clean Empty Fallback
-  const [products, setProducts] = useState(() => {
-    try {
-      const deletedIds = new Set(JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED_IDS) || '[]'));
-      const saved = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
-      if (!saved) return [];
-      const parsed = JSON.parse(saved);
-      if (!Array.isArray(parsed)) return [];
-      return parsed.filter((p) => !isDemoProduct(p) && !deletedIds.has(p.id));
-    } catch {
-      return [];
-    }
-  });
+  // 2. Real-time Database States (Loaded from Supabase, NO localStorage copy)
+  const [products, setProducts] = useState([]);
+  const [sellerSettings, setSellerSettings] = useState(DEFAULT_SELLER_SETTINGS);
+  const [orders, setOrders] = useState([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
 
-  // 3. Orders State with LocalStorage
-  const [orders, setOrders] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.ORDERS);
-      if (!saved) return [];
-      const parsed = JSON.parse(saved);
-      // Clean out any legacy mock demo orders
-      return parsed.filter((o) => o.id !== 'ORD-94812' && o.id !== 'ORD-94755');
-    } catch {
-      return [];
-    }
-  });
-
-  // 4. Seller Settings with LocalStorage
-  const [sellerSettings, setSellerSettings] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-      if (!saved) return DEFAULT_SELLER_SETTINGS;
-      const parsed = JSON.parse(saved);
-      return {
-        ...DEFAULT_SELLER_SETTINGS,
-        ...parsed,
-        storeName: !parsed.storeName || parsed.storeName.includes('NexMart') ? 'ZORIQ' : parsed.storeName,
-        merchantName: !parsed.merchantName || parsed.merchantName.includes('NexMart') ? 'ZORIQ Official' : parsed.merchantName,
-        adminPin: parsed.adminPin === '1234' || !parsed.adminPin ? '7784' : parsed.adminPin,
-        razorpayKeyId: parsed.razorpayKeyId && !parsed.razorpayKeyId.startsWith('rzp_test_') ? parsed.razorpayKeyId : 'rzp_live_TstUZQzK6D5kHP',
-        razorpayEnabled: true
-      };
-    } catch {
-      return DEFAULT_SELLER_SETTINGS;
-    }
-  });
-
-  // Real-Time Cross-Device Synchronization with Smart Merge
-  const syncFromCloud = useCallback(async () => {
-    try {
-      const cloudData = await fetchCloudStore();
-      if (!cloudData) return;
-
-      // 0. Synchronize deleted product IDs (tombstones) across all devices
-      let deletedIds = new Set();
-      try {
-        const localDeleted = JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED_IDS) || '[]');
-        const cloudDeleted = Array.isArray(cloudData.deletedProductIds) ? cloudData.deletedProductIds : [];
-        deletedIds = new Set([...localDeleted, ...cloudDeleted]);
-        localStorage.setItem(STORAGE_KEYS.DELETED_IDS, JSON.stringify(Array.from(deletedIds)));
-      } catch {}
-
-      // 1. Sync Products: ensure products added on mobile or laptop are merged safely
-      if (Array.isArray(cloudData.products)) {
-        const cloudFiltered = cloudData.products.filter((p) => !isDemoProduct(p) && !deletedIds.has(p.id));
-
-        setProducts((prevLocal) => {
-          const localFiltered = prevLocal.filter((p) => !isDemoProduct(p) && !deletedIds.has(p.id));
-
-          // If cloud has 0 valid products, but this device has added products:
-          // NEVER wipe local products! Push local products to populate the cloud instead!
-          if (cloudFiltered.length === 0 && localFiltered.length > 0) {
-            pushCloudStore({
-              products: localFiltered,
-              sellerSettings,
-              orders,
-              deletedProductIds: Array.from(deletedIds)
-            });
-            return localFiltered;
-          }
-
-          // Build a merged map: product ID -> product
-          const mergedMap = new Map();
-
-          // Add cloud items first
-          for (const item of cloudFiltered) {
-            if (item && item.id) {
-              mergedMap.set(item.id, item);
-            }
-          }
-
-          // Merge local items (preserves newly added or edited products)
-          for (const item of localFiltered) {
-            if (item && item.id) {
-              mergedMap.set(item.id, item);
-            }
-          }
-
-          const merged = Array.from(mergedMap.values());
-          try {
-            localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(merged));
-          } catch {}
-
-          return merged;
-        });
-      }
-
-      // 2. Sync Seller Settings
-      if (cloudData.sellerSettings && cloudData.sellerSettings.storeName) {
-        setSellerSettings((prev) => ({
-          ...prev,
-          ...cloudData.sellerSettings,
-          razorpayKeyId: cloudData.sellerSettings.razorpayKeyId || prev.razorpayKeyId || 'rzp_live_TstUZQzK6D5kHP',
-          razorpayEnabled: true
-        }));
-      }
-
-      // 3. Sync Orders
-      if (Array.isArray(cloudData.orders)) {
-        setOrders((prev) => {
-          const existingIds = new Set(prev.map((o) => o.id));
-          const newOrdersFromCloud = cloudData.orders.filter((o) => !existingIds.has(o.id));
-          if (newOrdersFromCloud.length > 0) {
-            return [...newOrdersFromCloud, ...prev];
-          }
-          return prev;
-        });
-      }
-    } catch (err) {
-      console.warn('Sync error:', err);
-    }
-  }, [sellerSettings, orders]);
-
-  // Continuous background sync across all devices
-  useEffect(() => {
-    syncFromCloud();
-
-    // Auto-sync every 5 seconds so changes on laptop show on mobile almost instantly
-    const interval = setInterval(syncFromCloud, 5000);
-
-    // Sync immediately when user switches back to the tab/app on phone or laptop
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        syncFromCloud();
-      }
-    };
-    window.addEventListener('focus', syncFromCloud);
-    document.addEventListener('visibilitychange', handleVisibility);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('focus', syncFromCloud);
-      document.removeEventListener('visibilitychange', handleVisibility);
-    };
-  }, [syncFromCloud]);
-
-  // 5. Cart State with LocalStorage
+  // 3. Cart State with LocalStorage (Only cart and admin token live in localStorage)
   const [cart, setCart] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.CART);
@@ -239,17 +67,17 @@ export function StoreProvider({ children }) {
     }
   });
 
-  // 6. Active Applied Coupon
-  const [coupon, setCoupon] = useState(null); // { code: 'WELCOME10', discountPercent: 10, fixedDiscount: 0 }
+  // 4. Active Applied Coupon
+  const [coupon, setCoupon] = useState(null);
 
-  // 7. Modals and Navigation states
+  // 5. Modals and Navigation states
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isMyOrdersOpen, setIsMyOrdersOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
-  
-  // Seller editor modal
+
+  // Seller Portal modals and tabs
   const [isProductEditorOpen, setIsProductEditorOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState(null);
   const [sellerActiveTab, setSellerActiveTab] = useState('dashboard'); // 'dashboard' | 'products' | 'orders' | 'settings'
@@ -257,36 +85,24 @@ export function StoreProvider({ children }) {
   // Search and Filter states
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [sortBy, setSortBy] = useState('featured'); // 'featured', 'price-low', 'price-high', 'rating'
+  const [sortBy, setSortBy] = useState('featured');
 
   // Toasts
   const [toasts, setToasts] = useState([]);
 
-  // Sync to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
-    } catch (e) {
-      console.error('Error saving products:', e);
-    }
-  }, [products]);
+  const addToast = useCallback((message, type = 'success') => {
+    const id = Date.now() + Math.random();
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 3500);
+  }, []);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders));
-    } catch (e) {
-      console.error('Error saving orders:', e);
-    }
-  }, [orders]);
+  const removeToast = (id) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(sellerSettings));
-    } catch (e) {
-      console.error('Error saving settings:', e);
-    }
-  }, [sellerSettings]);
-
+  // Sync Cart to LocalStorage
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEYS.CART, JSON.stringify(cart));
@@ -295,18 +111,259 @@ export function StoreProvider({ children }) {
     }
   }, [cart]);
 
-  // Toast notification helper
-  const addToast = (message, type = 'success') => {
-    const id = Date.now() + Math.random();
-    setToasts((prev) => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3500);
-  };
+  // Verify Admin Token on mount
+  useEffect(() => {
+    if (!adminToken) {
+      setIsAdminLoggedIn(false);
+      return;
+    }
 
-  const removeToast = (id) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  };
+    let isMounted = true;
+    adminVerifyToken(adminToken).then((valid) => {
+      if (!isMounted) return;
+      if (valid) {
+        setIsAdminLoggedIn(true);
+      } else {
+        setIsAdminLoggedIn(false);
+        setAdminToken('');
+        try {
+          localStorage.removeItem(STORAGE_KEYS.ADMIN_TOKEN);
+        } catch {}
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [adminToken]);
+
+  // Conflict State for Multi-Device Settings Editing
+  const [hasSettingsConflict, setHasSettingsConflict] = useState(false);
+  const [conflictSettings, setConflictSettings] = useState(null);
+
+  // Load Products & Settings from Supabase + Subscribe to Supabase Realtime
+  useEffect(() => {
+    let isMounted = true;
+
+    // Helper to fetch latest settings from Supabase
+    const fetchLatestPublicSettings = async () => {
+      if (!supabase) return;
+      try {
+        let fetchedData = null;
+        const { data: pubData, error: pubErr } = await supabase
+          .from('public_settings')
+          .select('*')
+          .eq('id', 'default')
+          .maybeSingle();
+
+        if (!pubErr && pubData) {
+          fetchedData = pubData;
+        } else {
+          const { data: altData } = await supabase
+            .from('settings')
+            .select('*')
+            .or('id.eq.default,id.eq.store_config')
+            .maybeSingle();
+          if (altData) fetchedData = altData;
+        }
+
+        if (fetchedData && isMounted) {
+          const mapped = mapSettingsFromDb(fetchedData);
+          if (mapped) {
+            setSellerSettings((prev) => {
+              if (mapped.version !== prev.version) {
+                return mapped;
+              }
+              return prev;
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('[Supabase] Settings poll error:', err.message);
+      }
+    };
+
+    // A. Initial Load from Supabase Postgres
+    const loadInitialData = async () => {
+      if (!supabase) {
+        setIsLoadingProducts(false);
+        return;
+      }
+
+      try {
+        const { data: prodsData, error: prodsErr } = await supabase
+          .from('products')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!isMounted) return;
+
+        if (prodsErr) {
+          console.error('[Supabase] Products fetch error:', prodsErr.message);
+        } else if (prodsData) {
+          setProducts(prodsData.map(mapProductFromDb).filter(Boolean));
+        }
+
+        // Try public_settings table, fallback to settings table
+        let settingsData = null;
+        const { data: pubData, error: pubErr } = await supabase
+          .from('public_settings')
+          .select('*')
+          .eq('id', 'default')
+          .maybeSingle();
+
+        if (!pubErr && pubData) {
+          settingsData = pubData;
+        } else {
+          const { data: altData } = await supabase
+            .from('settings')
+            .select('*')
+            .or('id.eq.default,id.eq.store_config')
+            .maybeSingle();
+          if (altData) settingsData = altData;
+        }
+
+        if (settingsData && isMounted) {
+          const mapped = mapSettingsFromDb(settingsData);
+          if (mapped) setSellerSettings(mapped);
+        }
+      } catch (err) {
+        console.error('[Supabase] Initial data load exception:', err);
+      } finally {
+        if (isMounted) setIsLoadingProducts(false);
+      }
+    };
+
+    loadInitialData();
+
+    if (!supabase) return;
+
+    // B. Realtime Subscription on products table
+    const productsChannel = supabase
+      .channel('realtime:products_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'products' },
+        (payload) => {
+          if (!isMounted) return;
+
+          if (payload.eventType === 'INSERT') {
+            const newProd = mapProductFromDb(payload.new);
+            if (newProd) {
+              setProducts((prev) => [newProd, ...prev.filter((p) => p.id !== newProd.id)]);
+            }
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedProd = mapProductFromDb(payload.new);
+            if (updatedProd) {
+              setProducts((prev) =>
+                prev.map((p) => (p.id === updatedProd.id ? updatedProd : p))
+              );
+            }
+          } else if (payload.eventType === 'DELETE') {
+            const deletedId = payload.old?.id;
+            if (deletedId) {
+              setProducts((prev) => prev.filter((p) => p.id !== deletedId));
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    // Handler for settings changes from Realtime
+    const handleSettingsRealtimeChange = (payload) => {
+      if (!isMounted) return;
+      if (payload.new) {
+        const mapped = mapSettingsFromDb(payload.new);
+        if (mapped) {
+          setSellerSettings((prev) => {
+            if (mapped.version > (prev.version || 1)) {
+              setConflictSettings(mapped);
+              setHasSettingsConflict(true);
+              return mapped;
+            }
+            return mapped;
+          });
+        }
+      }
+    };
+
+    // C. Realtime Subscription on public_settings AND settings tables
+    const settingsChannel = supabase
+      .channel('realtime:public_settings_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'public_settings' },
+        handleSettingsRealtimeChange
+      )
+      .subscribe();
+
+    const fallbackSettingsChannel = supabase
+      .channel('realtime:fallback_settings_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'settings' },
+        handleSettingsRealtimeChange
+      )
+      .subscribe();
+
+    // D. Refetch fallback every 15 seconds if realtime disconnects or misses events
+    const pollInterval = setInterval(() => {
+      fetchLatestPublicSettings();
+    }, 15000);
+
+    // E. Refetch immediately when browser tab becomes active
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchLatestPublicSettings();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      supabase.removeChannel(productsChannel);
+      supabase.removeChannel(settingsChannel);
+      supabase.removeChannel(fallbackSettingsChannel);
+    };
+  }, []);
+
+  // Fetch Orders when Admin enters seller orders tab or logs in
+  const fetchAdminOrdersList = useCallback(async () => {
+    if (!adminToken) return;
+    try {
+      const ordersList = await adminGetOrders(adminToken);
+      setOrders(ordersList);
+    } catch (err) {
+      console.error('Error fetching admin orders:', err);
+    }
+  }, [adminToken]);
+
+  useEffect(() => {
+    if (isAdminLoggedIn && role === 'seller') {
+      fetchAdminOrdersList();
+    }
+  }, [isAdminLoggedIn, role, fetchAdminOrdersList]);
+
+  // Load customer's placed orders for "My Orders" modal
+  const loadCustomerOrdersList = useCallback(async () => {
+    try {
+      const savedIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMER_ORDER_IDS) || '[]');
+      if (savedIds.length > 0) {
+        const customerOrders = await getCustomerOrders(savedIds);
+        setOrders(customerOrders);
+      }
+    } catch (err) {
+      console.warn('Error loading customer orders:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isMyOrdersOpen && !isAdminLoggedIn) {
+      loadCustomerOrdersList();
+    }
+  }, [isMyOrdersOpen, isAdminLoggedIn, loadCustomerOrdersList]);
 
   // --- Cart Calculations ---
   const cartCount = cart.reduce((total, item) => total + item.quantity, 0);
@@ -321,9 +378,10 @@ export function StoreProvider({ children }) {
     }
   }
 
-  const shippingFee = cartSubtotal >= sellerSettings.freeShippingThreshold || cartSubtotal === 0
-    ? 0
-    : sellerSettings.standardShippingFee;
+  const shippingFee =
+    cartSubtotal >= (sellerSettings.freeShippingThreshold || 999) || cartSubtotal === 0
+      ? 0
+      : (sellerSettings.standardShippingFee || 60);
 
   const cartTotal = Math.max(0, cartSubtotal - discountAmount + shippingFee);
 
@@ -383,7 +441,7 @@ export function StoreProvider({ children }) {
           return item;
         })
         .filter(Boolean);
-    });
+      });
   };
 
   const removeFromCart = (productId) => {
@@ -421,14 +479,9 @@ export function StoreProvider({ children }) {
     addToast('Coupon removed', 'info');
   };
 
-  // --- Order Placement ---
-  const placeOrder = ({ customer, paymentMethod, paymentDetails = {} }) => {
-    const orderId = `ORD-${Math.floor(100000 + Math.random() * 900000)}`;
-    const trackingNumber = `NEX-${Math.floor(10000000 + Math.random() * 90000000)}`;
-
-    const newOrder = {
-      id: orderId,
-      date: new Date().toISOString(),
+  // --- Customer Order Placement (Creates via Server Route /api/orders) ---
+  const placeOrder = async ({ customer, paymentMethod, paymentDetails = {} }) => {
+    const payload = {
       customer,
       items: [...cart],
       subtotal: cartSubtotal,
@@ -436,303 +489,323 @@ export function StoreProvider({ children }) {
       couponApplied: coupon ? coupon.code : null,
       shippingFee,
       total: cartTotal,
-      paymentMethod, // 'RAZORPAY' | 'COD'
-      paymentStatus: paymentMethod === 'RAZORPAY' ? 'Paid' : 'Pending (COD)',
-      upiTxnId: paymentMethod === 'RAZORPAY' ? paymentDetails.razorpayPaymentId : null,
-      upiVpa: null,
-      razorpayPaymentId: paymentMethod === 'RAZORPAY' ? (paymentDetails.razorpayPaymentId || null) : null,
-      razorpayOrderId: paymentMethod === 'RAZORPAY' ? (paymentDetails.razorpayOrderId || null) : null,
-      razorpaySignature: paymentMethod === 'RAZORPAY' ? (paymentDetails.razorpaySignature || null) : null,
-      orderStatus: paymentMethod === 'RAZORPAY' ? 'Confirmed' : 'Placed',
-      trackingNumber,
+      paymentMethod,
+      paymentDetails,
     };
 
-    // Deduct stock from products
-    setProducts((prev) =>
-      prev.map((prod) => {
-        const cartItem = cart.find((c) => c.id === prod.id);
-        if (cartItem) {
-          const newStock = Math.max(0, prod.stock - cartItem.quantity);
-          return {
-            ...prod,
-            stock: newStock,
-            inStock: newStock > 0,
-          };
-        }
-        return prod;
-      })
-    );
-
-    // Append to orders
-    const updatedOrders = [newOrder, ...orders];
-    setOrders(updatedOrders);
-    pushCloudStore({ products, sellerSettings, orders: updatedOrders });
-
-    // Clear cart
-    clearCart();
-
-    addToast(`Order #${orderId} placed successfully!`, 'success');
-    return newOrder;
-  };
-
-  // --- Seller Actions with Automatic Cloud Sync ---
-  const addProduct = (productData) => {
-    const newId = `product-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-    const newProduct = {
-      id: newId,
-      sku: productData.sku || `SKU-${Math.floor(1000 + Math.random() * 9000)}`,
-      rating: 5.0,
-      reviewsCount: 1,
-      inStock: Number(productData.stock) > 0,
-      codAvailable: productData.codAvailable !== undefined ? Boolean(productData.codAvailable) : true,
-      features: Array.isArray(productData.features) ? productData.features : (productData.features || '').split('\n').filter(Boolean),
-      ...productData,
-      price: Number(productData.price),
-      originalPrice: Number(productData.originalPrice || productData.price * 1.3),
-      stock: Number(productData.stock),
-    };
-
-    // Remove newId from deleted IDs if previously recorded
     try {
-      const deleted = JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED_IDS) || '[]');
-      const filteredDeleted = deleted.filter((id) => id !== newId);
-      localStorage.setItem(STORAGE_KEYS.DELETED_IDS, JSON.stringify(filteredDeleted));
-    } catch {}
+      const createdOrder = await createCustomerOrder(payload);
 
-    setProducts((prev) => {
-      const updated = [newProduct, ...prev.filter((p) => p.id !== newId)];
+      // Save order ID in customer's local list for "My Orders" tracking
       try {
-        localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
-      } catch {}
-      pushCloudStore({ products: updated, sellerSettings, orders });
-      return updated;
-    });
-
-    addToast(`Product "${newProduct.name}" added successfully!`, 'success');
-  };
-
-  const updateProduct = (productId, updatedData) => {
-    setProducts((prev) => {
-      const updated = prev.map((prod) => {
-        if (prod.id === productId) {
-          return {
-            ...prod,
-            ...updatedData,
-            price: Number(updatedData.price),
-            originalPrice: Number(updatedData.originalPrice || updatedData.price * 1.3),
-            stock: Number(updatedData.stock),
-            inStock: Number(updatedData.stock) > 0,
-            codAvailable: updatedData.codAvailable !== undefined ? Boolean(updatedData.codAvailable) : (prod.codAvailable !== false),
-            features: Array.isArray(updatedData.features)
-              ? updatedData.features
-              : (updatedData.features || '').split('\n').filter(Boolean),
-          };
+        const savedIds = JSON.parse(
+          localStorage.getItem(STORAGE_KEYS.CUSTOMER_ORDER_IDS) || '[]'
+        );
+        if (!savedIds.includes(createdOrder.id)) {
+          savedIds.unshift(createdOrder.id);
+          localStorage.setItem(STORAGE_KEYS.CUSTOMER_ORDER_IDS, JSON.stringify(savedIds));
         }
-        return prod;
-      });
-      try {
-        localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
       } catch {}
-      pushCloudStore({ products: updated, sellerSettings, orders });
-      return updated;
-    });
-    addToast('Product updated and synced across all devices!', 'success');
+
+      // Prepend to current orders state for immediate receipt/invoice view
+      setOrders((prev) => [createdOrder, ...prev.filter((o) => o.id !== createdOrder.id)]);
+
+      // Clear cart
+      clearCart();
+      addToast(`Order #${createdOrder.id} placed successfully!`, 'success');
+      return createdOrder;
+    } catch (err) {
+      console.error('Order creation error:', err);
+      addToast(`Order failed: ${err.message}`, 'error');
+      throw err;
+    }
   };
 
-  const toggleProductCod = (productId) => {
-    setProducts((prev) => {
-      const updated = prev.map((prod) => {
-        if (prod.id === productId) {
-          const current = prod.codAvailable !== false;
-          const next = !current;
-          addToast(`Cash on Delivery (COD) ${next ? 'enabled' : 'disabled'} for "${prod.name.slice(0, 22)}..."`, 'info');
-          return {
-            ...prod,
-            codAvailable: next,
-          };
-        }
-        return prod;
-      });
-      try {
-        localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
-      } catch {}
-      pushCloudStore({ products: updated, sellerSettings, orders });
-      return updated;
-    });
-  };
+  // --- Admin Actions (Execute via Serverless /api/admin Routes) ---
 
-  const deleteProduct = (productId) => {
-    let deletedList = [];
+  const addProduct = async (productData) => {
     try {
-      const deleted = JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED_IDS) || '[]');
-      if (!deleted.includes(productId)) {
-        deleted.push(productId);
+      const createdProd = await adminAddProduct(productData, adminToken);
+      if (createdProd) {
+        setProducts((prev) => [createdProd, ...prev.filter((p) => p.id !== createdProd.id)]);
       }
-      deletedList = deleted;
-      localStorage.setItem(STORAGE_KEYS.DELETED_IDS, JSON.stringify(deletedList));
-    } catch {}
-
-    setProducts((prev) => {
-      const prod = prev.find((p) => p.id === productId);
-      const updated = prev.filter((p) => p.id !== productId);
-      try {
-        localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
-      } catch {}
-      pushCloudStore({
-        products: updated,
-        sellerSettings,
-        orders,
-        deletedProductIds: deletedList
-      });
-      addToast(`Product "${prod?.name || 'Item'}" deleted and synced.`, 'info');
-      return updated;
-    });
-
-    setCart((prev) => prev.filter((item) => item.id !== productId));
+      addToast(`Product "${productData.name}" added and synced to all devices!`, 'success');
+      return createdProd;
+    } catch (err) {
+      console.error('Add product error:', err);
+      addToast(`Failed to add product: ${err.message}`, 'error');
+      throw err;
+    }
   };
 
-  const exportCatalog = () => {
-    exportCatalogToJson(products, sellerSettings);
-    addToast('Catalog JSON downloaded! You can import this file on any device.', 'success');
+  const updateProduct = async (productId, updatedData) => {
+    try {
+      const updatedProd = await adminUpdateProduct(productId, updatedData, adminToken);
+      if (updatedProd) {
+        setProducts((prev) => prev.map((p) => (p.id === productId ? updatedProd : p)));
+      }
+      addToast('Product updated and synced across all devices!', 'success');
+      return updatedProd;
+    } catch (err) {
+      console.error('Update product error:', err);
+      addToast(`Failed to update product: ${err.message}`, 'error');
+      throw err;
+    }
+  };
+
+  const deleteProduct = async (productId) => {
+    const prod = products.find((p) => p.id === productId);
+    try {
+      await adminDeleteProduct(productId, adminToken);
+      setProducts((prev) => prev.filter((p) => p.id !== productId));
+      setCart((prev) => prev.filter((item) => item.id !== productId));
+      addToast(`Product "${prod?.name || 'Item'}" deleted and synced.`, 'info');
+    } catch (err) {
+      console.error('Delete product error:', err);
+      addToast(`Failed to delete product: ${err.message}`, 'error');
+      throw err;
+    }
+  };
+
+  const toggleProductStock = async (productId) => {
+    const prod = products.find((p) => p.id === productId);
+    if (!prod) return;
+    const nextStock = !prod.inStock;
+    const updatedStockValue = nextStock ? (prod.stock > 0 ? prod.stock : 10) : 0;
+    try {
+      await updateProduct(productId, {
+        inStock: nextStock,
+        stock: updatedStockValue,
+      });
+    } catch (err) {
+      console.error('Stock toggle error:', err);
+    }
+  };
+
+  const toggleProductCod = async (productId) => {
+    const prod = products.find((p) => p.id === productId);
+    if (!prod) return;
+    const nextCod = !(prod.codAvailable !== false);
+    try {
+      await updateProduct(productId, {
+        codAvailable: nextCod,
+      });
+      addToast(
+        `Cash on Delivery ${nextCod ? 'enabled' : 'disabled'} for "${prod.name.slice(0, 22)}..."`,
+        'info'
+      );
+    } catch (err) {
+      console.error('COD toggle error:', err);
+    }
+  };
+
+  // Save settings section by section with optimistic locking
+  const updateSettingsSection = async (section, sectionData) => {
+    try {
+      const res = await adminUpdateSettingsSection(
+        section,
+        sectionData,
+        sellerSettings.version,
+        adminToken
+      );
+
+      if (res && res.settings) {
+        setSellerSettings(res.settings);
+        setHasSettingsConflict(false);
+        setConflictSettings(null);
+      }
+      addToast(`"${section.toUpperCase()}" settings saved & synced to all devices!`, 'success');
+      return { success: true, settings: res.settings };
+    } catch (err) {
+      console.error(`Save section "${section}" error:`, err);
+      if (err.status === 409 || err.conflict) {
+        setHasSettingsConflict(true);
+        if (err.latestSettings) {
+          setConflictSettings(err.latestSettings);
+        }
+        addToast('Settings were updated on another device. Reload to see changes.', 'warning');
+      } else {
+        addToast(`Save failed: ${err.message}`, 'error');
+      }
+      throw err;
+    }
+  };
+
+  const updateSellerSettings = async (newSettings) => {
+    return updateSettingsSection('all', newSettings);
+  };
+
+  const reloadLatestSettings = async () => {
+    try {
+      if (conflictSettings) {
+        setSellerSettings(conflictSettings);
+        setHasSettingsConflict(false);
+        setConflictSettings(null);
+        addToast('Reloaded latest settings from cloud!', 'info');
+        return;
+      }
+
+      if (!supabase) return;
+      const { data, error } = await supabase
+        .from('public_settings')
+        .select('*')
+        .eq('id', 'default')
+        .maybeSingle();
+
+      if (!error && data) {
+        const mapped = mapSettingsFromDb(data);
+        if (mapped) {
+          setSellerSettings(mapped);
+          setHasSettingsConflict(false);
+          setConflictSettings(null);
+          addToast('Reloaded latest settings from cloud!', 'info');
+        }
+      }
+    } catch (err) {
+      console.error('Reload settings error:', err);
+      addToast('Could not reload settings.', 'error');
+    }
+  };
+
+  const changeAdminPassword = async (currentPassword, newPassword, confirmPassword) => {
+    try {
+      const res = await adminChangePassword(currentPassword, newPassword, confirmPassword, adminToken);
+      if (res && res.token) {
+        setAdminToken(res.token);
+        try {
+          localStorage.setItem(STORAGE_KEYS.ADMIN_TOKEN, res.token);
+        } catch {}
+      }
+      addToast(res.message || 'Password changed successfully! Other devices logged out.', 'success');
+      return { success: true };
+    } catch (err) {
+      console.error('Change password error:', err);
+      addToast(err.message || 'Failed to change admin password.', 'error');
+      throw err;
+    }
+  };
+
+  const updateOrderStatus = async (orderId, newStatus) => {
+    try {
+      const updatedOrder = await adminUpdateOrderStatus(orderId, newStatus, null, adminToken);
+      if (updatedOrder) {
+        setOrders((prev) => prev.map((o) => (o.id === orderId ? updatedOrder : o)));
+      }
+      addToast(`Order #${orderId} marked as ${newStatus}`, 'success');
+    } catch (err) {
+      console.error('Order status update error:', err);
+      addToast(`Failed to update order status: ${err.message}`, 'error');
+    }
+  };
+
+  const updatePaymentStatus = async (orderId, newPaymentStatus) => {
+    try {
+      const updatedOrder = await adminUpdateOrderStatus(orderId, null, newPaymentStatus, adminToken);
+      if (updatedOrder) {
+        setOrders((prev) => prev.map((o) => (o.id === orderId ? updatedOrder : o)));
+      }
+      addToast(`Order #${orderId} payment marked as "${newPaymentStatus}"`, 'info');
+    } catch (err) {
+      console.error('Payment status update error:', err);
+      addToast(`Failed to update payment status: ${err.message}`, 'error');
+    }
   };
 
   const importCatalog = async (file) => {
     try {
-      const imported = await parseCatalogFromJson(file);
-      if (imported && imported.length > 0) {
-        setProducts(imported);
-        try {
-          localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(imported));
-        } catch {}
-        pushCloudStore({ products: imported, sellerSettings, orders });
-        addToast(`Successfully imported ${imported.length} products to this store!`, 'success');
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const itemsToImport = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray(parsed.products)
+        ? parsed.products
+        : null;
+
+      if (!itemsToImport || itemsToImport.length === 0) {
+        throw new Error('No valid products array found in the uploaded JSON file.');
       }
+
+      await adminImportProducts(itemsToImport, adminToken);
+      addToast(`Successfully imported ${itemsToImport.length} products to store!`, 'success');
     } catch (err) {
-      addToast(err.message || 'Failed to import catalog', 'error');
+      console.error('Catalog import error:', err);
+      addToast(`Import failed: ${err.message}`, 'error');
     }
   };
 
-  const toggleProductStock = (productId) => {
-    setProducts((prev) => {
-      const updated = prev.map((prod) => {
-        if (prod.id === productId) {
-          const nextStockState = !prod.inStock;
-          return {
-            ...prod,
-            inStock: nextStockState,
-            stock: nextStockState ? (prod.stock > 0 ? prod.stock : 10) : 0,
-          };
-        }
-        return prod;
+  const exportCatalog = () => {
+    try {
+      const exportData = {
+        exportedAt: new Date().toISOString(),
+        storeName: sellerSettings.storeName,
+        products,
+        sellerSettings,
+      };
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+        type: 'application/json',
       });
-      try {
-        localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
-      } catch {}
-      pushCloudStore({ products: updated, sellerSettings, orders });
-      addToast('Stock status updated and synced', 'info');
-      return updated;
-    });
-  };
-
-  const updateOrderStatus = (orderId, newStatus) => {
-    const updatedOrders = orders.map((ord) => {
-      if (ord.id === orderId) {
-        const updated = { ...ord, orderStatus: newStatus };
-        // If marked Delivered and COD, mark payment as Paid
-        if (newStatus === 'Delivered' && ord.paymentMethod === 'COD') {
-          updated.paymentStatus = 'Paid';
-        }
-        return updated;
-      }
-      return ord;
-    });
-    setOrders(updatedOrders);
-    pushCloudStore({ products, sellerSettings, orders: updatedOrders });
-    addToast(`Order #${orderId} marked as ${newStatus}`, 'success');
-  };
-
-  const updatePaymentStatus = (orderId, newPaymentStatus) => {
-    const updatedOrders = orders.map((ord) => {
-      if (ord.id === orderId) {
-        const updated = { ...ord, paymentStatus: newPaymentStatus };
-        if (newPaymentStatus === 'Paid' && ord.orderStatus === 'Placed') {
-          updated.orderStatus = 'Confirmed';
-        } else if (newPaymentStatus === 'Failed') {
-          updated.orderStatus = 'Cancelled';
-        }
-        return updated;
-      }
-      return ord;
-    });
-    setOrders(updatedOrders);
-    pushCloudStore({ products, sellerSettings, orders: updatedOrders });
-    addToast(`Order #${orderId} payment marked as "${newPaymentStatus}"`, 'info');
-  };
-
-  const updateSellerSettings = (newSettings) => {
-    const updated = {
-      ...sellerSettings,
-      ...newSettings,
-      razorpayKeyId: newSettings.razorpayKeyId || sellerSettings.razorpayKeyId || 'rzp_live_TstUZQzK6D5kHP',
-      razorpayEnabled: true,
-    };
-    setSellerSettings(updated);
-    pushCloudStore({ products, sellerSettings: updated, orders });
-    addToast('Store settings updated and synced across all devices!', 'success');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `zoriq-catalog-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      addToast('Catalog backup JSON downloaded successfully!', 'success');
+    } catch (err) {
+      console.error('Export error:', err);
+      addToast('Failed to export catalog backup.', 'error');
+    }
   };
 
   const resetAllDataToDefault = () => {
-    setProducts([]);
-    setOrders([]);
-    setSellerSettings(DEFAULT_SELLER_SETTINGS);
     setCart([]);
     setCoupon(null);
-    localStorage.removeItem(STORAGE_KEYS.PRODUCTS);
-    localStorage.removeItem(STORAGE_KEYS.ORDERS);
-    localStorage.removeItem(STORAGE_KEYS.SETTINGS);
-    localStorage.removeItem(STORAGE_KEYS.CART);
-    localStorage.removeItem(STORAGE_KEYS.DELETED_IDS);
-    pushCloudStore({ products: [], sellerSettings: DEFAULT_SELLER_SETTINGS, orders: [], deletedProductIds: [] });
-    addToast('Store reset to clean defaults', 'info');
+    addToast('Cart and filters cleared.', 'info');
   };
 
   const loadStarterProducts = () => {
-    setProducts([]);
-    try {
-      localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify([]));
-    } catch (e) {
-      console.error('Error clearing products:', e);
-    }
+    addToast('Starter products feature retired. Add custom products in Owner Portal.', 'info');
   };
 
-  // --- Admin Security ---
-  const loginAdmin = (inputPin, autoOpenEditor = false) => {
-    const validPin = sellerSettings.adminPin || '7784';
-    if (inputPin.trim() === validPin) {
+  // --- Admin Security (Server Password Verification) ---
+  const loginAdmin = async (inputPassword, autoOpenEditor = false) => {
+    try {
+      const res = await adminLogin(inputPassword);
+      const token = res.token;
+      setAdminToken(token);
       setIsAdminLoggedIn(true);
       setRole('seller');
       setIsAdminLoginModalOpen(false);
+
       try {
-        localStorage.setItem('nexmart_admin_auth', 'true');
+        localStorage.setItem(STORAGE_KEYS.ADMIN_TOKEN, token);
       } catch {}
+
       if (autoOpenEditor) {
         setSellerActiveTab('products');
         setProductToEdit(null);
         setIsProductEditorOpen(true);
       }
-      addToast('Owner verified! Welcome to Merchant Portal.', 'success');
-      return true;
-    } else {
-      addToast('Incorrect Admin PIN. Please try again.', 'error');
-      return false;
+
+      if (res.isFirstTime) {
+        addToast(res.message || 'First-time setup: Please set a custom password in Store Settings!', 'warning');
+      } else {
+        addToast('Owner verified! Welcome to Merchant Portal.', 'success');
+      }
+      return { success: true, isFirstTime: res.isFirstTime };
+    } catch (err) {
+      console.error('Admin login error:', err);
+      addToast(err.message || 'Incorrect Admin Password / PIN.', 'error');
+      return { success: false, error: err.message };
     }
   };
 
   const logoutAdmin = () => {
+    setAdminToken('');
     setIsAdminLoggedIn(false);
     setRole('customer');
     try {
-      localStorage.removeItem('nexmart_admin_auth');
+      localStorage.removeItem(STORAGE_KEYS.ADMIN_TOKEN);
     } catch {}
     addToast('Logged out of Admin Portal.', 'info');
   };
@@ -748,7 +821,7 @@ export function StoreProvider({ children }) {
   return (
     <StoreContext.Provider
       value={{
-        // Role & Layout & Admin Security
+        // Role & Admin Security
         role,
         setRole,
         switchRole,
@@ -757,11 +830,13 @@ export function StoreProvider({ children }) {
         setIsAdminLoginModalOpen,
         loginAdmin,
         logoutAdmin,
+        adminToken,
         sellerActiveTab,
         setSellerActiveTab,
 
         // Products
         products,
+        isLoadingProducts,
         addProduct,
         updateProduct,
         deleteProduct,
@@ -799,10 +874,17 @@ export function StoreProvider({ children }) {
         setIsMyOrdersOpen,
         selectedInvoice,
         setSelectedInvoice,
+        fetchAdminOrdersList,
+        loadCustomerOrdersList,
 
-        // Seller
+        // Seller Settings & Sync
         sellerSettings,
         updateSellerSettings,
+        updateSettingsSection,
+        changeAdminPassword,
+        hasSettingsConflict,
+        conflictSettings,
+        reloadLatestSettings,
         isProductEditorOpen,
         setIsProductEditorOpen,
         productToEdit,
@@ -810,7 +892,6 @@ export function StoreProvider({ children }) {
         resetAllDataToDefault,
         exportCatalog,
         importCatalog,
-        syncFromCloud,
 
         // Filter & Search
         searchQuery,

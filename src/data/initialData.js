@@ -12,24 +12,57 @@ export const STARTER_PRODUCTS = [];
 export const INITIAL_PRODUCTS = [];
 
 export const DEFAULT_SELLER_SETTINGS = {
+  // Store Identity
   storeName: 'ZORIQ',
-  sellerUpiId: '',
-  merchantName: 'ZORIQ Official',
-  bankName: 'State Bank of India',
-  bankAccountNumber: '',
-  bankIfsc: '',
-  accountHolderName: '',
+  tagline: 'Premium Direct-to-Consumer Electronics & Lifestyle',
+  logoUrl: '/zoriq-logo.jpg',
+  contactPhone: '+91 98765 43210',
+  contactEmail: 'help@zoriq.in',
+  address: '12th Floor, Orion Tech Park, MG Road, Bengaluru, Karnataka 560001',
+  socialLinks: {
+    instagram: 'https://instagram.com/zoriq.official',
+    twitter: 'https://twitter.com/zoriq_official',
+    facebook: 'https://facebook.com/zoriq.official',
+  },
+  footerText: '© 2026 ZORIQ Official Store. All rights reserved.',
+  announcement: '⚡ FLASH SALE: Free Delivery on orders over ₹999 + Instant Bank Discounts!',
+
+  // Shipping Rules
+  freeShippingThreshold: 999,
+  standardShippingFee: 49,
+  deliveryTimeEstimate: '2 - 4 Business Days',
+  serviceablePincodes: 'All India',
+
+  // COD Settings
   codEnabled: true,
   codFee: 0,
-  freeShippingThreshold: 999,
-  standardShippingFee: 60,
-  currency: '₹',
-  contactEmail: '',
-  contactPhone: '',
-  adminPin: '7784',
+  minOrderCod: 0,
+  maxOrderCod: 25000,
+
+  // Online Payment Settings (Razorpay)
   razorpayEnabled: true,
-  razorpayKeyId: 'rzp_live_TstUZQzK6D5kHP', // Razorpay Live API Key
-  razorpayKeySecret: '', // Reference only
+  razorpayKeyId: 'rzp_live_TstUZQzK6D5kHP', // Public Key ID
+
+  // Payment Methods Enabled
+  upiEnabled: true,
+  cardsEnabled: true,
+  netBankingEnabled: true,
+
+  // Tax, GST & Invoice Details
+  merchantName: 'ZORIQ Official Retails Pvt Ltd',
+  gstNumber: '29ABCDE1234F1Z5',
+  taxRate: 0, // In percentage (e.g. 0 for included/none)
+  invoicePrefix: 'ZRQ-',
+  sellerUpiId: 'zoriq@upi',
+  bankName: 'State Bank of India',
+  bankAccountNumber: '98765432100012',
+  bankIfsc: 'SBIN0001234',
+  accountHolderName: 'ZORIQ Official Store',
+  currency: '₹',
+
+  // Version Control & Timestamp
+  version: 1,
+  updatedAt: new Date().toISOString(),
 };
 
 export const SAMPLE_ORDERS = [];

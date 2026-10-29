@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../../context/StoreContext';
+import { createRazorpayServerOrder } from '../../services/supabase';
 import confetti from 'canvas-confetti';
 import {
   X,
@@ -106,131 +107,153 @@ export default function CheckoutModal() {
     }
   };
 
-  // Razorpay Checkout Handler (Auto Bank Verified)
-  const handleRazorpayPayment = () => {
+  // Razorpay Checkout Handler (Server Order Created with Current Key and Amount)
+  const handleRazorpayPayment = async () => {
     setIsProcessingPayment(true);
 
-    const proceedWithRazorpay = () => {
-      // Prioritize live Razorpay key provided by seller
-      const razorpayKeyId =
-        sellerSettings.razorpayKeyId?.trim() || 'rzp_live_TstUZQzK6D5kHP';
+    try {
+      // 1. Create server-side order with recalculated totals and current key from DB
+      const serverOrderData = await createRazorpayServerOrder(cart, customer, 0);
+      const razorpayKeyId = serverOrderData.keyId || sellerSettings.razorpayKeyId || 'rzp_live_TstUZQzK6D5kHP';
+      const amountPaise = serverOrderData.amount || Math.round(cartTotal * 100);
+      const razorpayOrderId = serverOrderData.razorpayOrderId;
 
-      const options = {
-        key: razorpayKeyId,
-        amount: Math.round(cartTotal * 100), // Amount in paise
-        currency: 'INR',
-        name: sellerSettings.storeName || 'ZORIQ',
-        description: `Order (${cart.length} item${cart.length > 1 ? 's' : ''})`,
-        image: '/zoriq-logo.jpg',
-        prefill: {
-          name: customer.name,
-          email: customer.email,
-          contact: customer.phone,
-        },
-        notes: {
-          address: `${customer.address}, ${customer.city}, ${customer.state} - ${customer.pincode}`,
-        },
-        theme: {
-          color: '#4F46E5', // Indigo
-        },
-        handler: function (response) {
-          // Money captured and verified by the bank
-          setIsProcessingPayment(false);
+      const proceedWithRazorpay = () => {
+        const options = {
+          key: razorpayKeyId,
+          amount: amountPaise,
+          currency: 'INR',
+          name: sellerSettings.storeName || 'ZORIQ',
+          description: `Order (${cart.length} item${cart.length > 1 ? 's' : ''})`,
+          image: sellerSettings.logoUrl || '/zoriq-logo.jpg',
+          ...(razorpayOrderId ? { order_id: razorpayOrderId } : {}),
+          prefill: {
+            name: customer.name,
+            email: customer.email,
+            contact: customer.phone,
+          },
+          notes: {
+            address: `${customer.address}, ${customer.city}, ${customer.state} - ${customer.pincode}`,
+          },
+          theme: {
+            color: '#4F46E5', // Indigo
+          },
+          handler: async function (response) {
+            setIsProcessingPayment(true);
+            try {
+              const order = await placeOrder({
+                customer,
+                paymentMethod: 'RAZORPAY',
+                paymentDetails: {
+                  razorpayPaymentId: response.razorpay_payment_id,
+                  razorpayOrderId: response.razorpay_order_id || razorpayOrderId || null,
+                  razorpaySignature: response.razorpay_signature || null,
+                  upiTxnId: response.razorpay_payment_id,
+                },
+              });
 
-          const order = placeOrder({
-            customer,
-            paymentMethod: 'RAZORPAY',
-            paymentDetails: {
-              razorpayPaymentId: response.razorpay_payment_id,
-              razorpayOrderId: response.razorpay_order_id || null,
-              razorpaySignature: response.razorpay_signature || null,
-              upiTxnId: response.razorpay_payment_id,
-            },
-          });
+              setPlacedOrder(order);
+              setStep(3);
 
-          setPlacedOrder(order);
-          setStep(3);
-
-          try {
-            confetti({
-              particleCount: 120,
-              spread: 80,
-              origin: { y: 0.6 },
-            });
-          } catch {
-            // ignore
-          }
-        },
-        modal: {
-          ondismiss: function () {
-            setIsProcessingPayment(false);
-            if (addToast) {
-              addToast('Payment was cancelled. You can try again anytime.', 'info');
+              try {
+                confetti({
+                  particleCount: 120,
+                  spread: 80,
+                  origin: { y: 0.6 },
+                });
+              } catch {
+                // ignore
+              }
+            } catch (err) {
+              console.error('Order placement failed:', err);
+              alert(`Payment was captured, but saving order to store database failed: ${err.message}. Please contact support with Payment ID: ${response.razorpay_payment_id}`);
+            } finally {
+              setIsProcessingPayment(false);
             }
           },
-        },
-      };
+          modal: {
+            ondismiss: function () {
+              setIsProcessingPayment(false);
+              if (addToast) {
+                addToast('Payment was cancelled. You can try again anytime.', 'info');
+              }
+            },
+          },
+        };
 
-      try {
-        const rzp = new window.Razorpay(options);
-        rzp.on('payment.failed', function (response) {
+        try {
+          const rzp = new window.Razorpay(options);
+          rzp.on('payment.failed', function (response) {
+            setIsProcessingPayment(false);
+            alert(
+              `Razorpay Payment Failed: ${
+                response.error?.description || 'Transaction was declined.'
+              }`
+            );
+          });
+          rzp.open();
+        } catch (err) {
           setIsProcessingPayment(false);
+          console.error('Razorpay execution error:', err);
           alert(
-            `Razorpay Payment Failed: ${
-              response.error?.description || 'Transaction was declined.'
-            }`
+            'Could not launch Razorpay. Please check your internet connection or verify your Razorpay Key ID: ' +
+              err.message
           );
-        });
-        rzp.open();
-      } catch (err) {
-        setIsProcessingPayment(false);
-        console.error('Razorpay execution error:', err);
-        alert(
-          'Could not launch Razorpay. Please check your internet connection or verify your Razorpay Key ID: ' +
-            err.message
-        );
-      }
-    };
-
-    if (window.Razorpay) {
-      proceedWithRazorpay();
-    } else {
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.onload = () => proceedWithRazorpay();
-      script.onerror = () => {
-        setIsProcessingPayment(false);
-        alert('Could not load Razorpay SDK. Please check your internet connection.');
+        }
       };
-      document.body.appendChild(script);
+
+      if (window.Razorpay) {
+        proceedWithRazorpay();
+      } else {
+        const script = document.createElement('script');
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        script.onload = () => proceedWithRazorpay();
+        script.onerror = () => {
+          setIsProcessingPayment(false);
+          alert('Could not load Razorpay SDK. Please check your internet connection.');
+        };
+        document.body.appendChild(script);
+      }
+    } catch (err) {
+      setIsProcessingPayment(false);
+      console.error('Razorpay initialization error:', err);
+      alert(err.message || 'Could not initiate Razorpay checkout.');
     }
   };
 
   // COD Order Confirmation Handler
-  const handleCodPayment = (e) => {
+  const handleCodPayment = async (e) => {
     e.preventDefault();
     if (captchaInput.trim() !== captchaCode) {
       setCaptchaError('Incorrect anti-bot security code. Please try again.');
       return;
     }
 
-    const order = placeOrder({
-      customer,
-      paymentMethod: 'COD',
-      paymentDetails: {}
-    });
-
-    setPlacedOrder(order);
-    setStep(3);
-
+    setIsProcessingPayment(true);
     try {
-      confetti({
-        particleCount: 80,
-        spread: 70,
-        origin: { y: 0.6 }
+      const order = await placeOrder({
+        customer,
+        paymentMethod: 'COD',
+        paymentDetails: {}
       });
-    } catch {
-      // ignore
+
+      setPlacedOrder(order);
+      setStep(3);
+
+      try {
+        confetti({
+          particleCount: 80,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
+      } catch {
+        // ignore
+      }
+    } catch (err) {
+      console.error('COD order creation error:', err);
+      setCaptchaError('Failed to place order: ' + err.message);
+    } finally {
+      setIsProcessingPayment(false);
     }
   };
 
@@ -604,10 +627,20 @@ export default function CheckoutModal() {
 
                 <button
                   type="submit"
-                  className="w-full py-3.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all active:scale-[0.99]"
+                  disabled={isProcessingPayment}
+                  className="w-full py-3.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all active:scale-[0.99] disabled:opacity-50"
                 >
-                  <Check className="w-4 h-4 stroke-[3]" />
-                  <span>Confirm Cash on Delivery Order</span>
+                  {isProcessingPayment ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Confirming Cash on Delivery Order...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4 stroke-[3]" />
+                      <span>Confirm Cash on Delivery Order</span>
+                    </>
+                  )}
                 </button>
               </form>
             )}

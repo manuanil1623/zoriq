@@ -55,7 +55,7 @@ export default function Navbar() {
             UPI & COD Enabled Storefront
           </span>
           <span className="hidden md:inline text-indigo-200">
-            • Flat 10% OFF with code <strong className="text-yellow-300">WELCOME10</strong> • Free Delivery on orders over ₹{sellerSettings.freeShippingThreshold}
+            • {sellerSettings.announcement || `Free Delivery on orders over ₹${sellerSettings.freeShippingThreshold || 999}`}
           </span>
         </div>
 
