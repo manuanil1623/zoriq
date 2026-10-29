@@ -15,6 +15,16 @@
   box-sizing: border-box;
 }
 
+/* All form inputs, selects, and textareas must type in sharp, readable black */
+input, textarea, select {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+input::placeholder, textarea::placeholder {
+  color: #94a3b8 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+}
+
 @layer base {
   body {
     margin: 0;

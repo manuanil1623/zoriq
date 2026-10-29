@@ -195,7 +195,7 @@ export default function ProductEditorModal() {
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="e.g. UltraClear Noise Cancelling Wireless Headphones"
-                className={`w-full px-3 py-2 text-xs bg-gray-50 border rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
+                className={`w-full px-3 py-2 text-xs bg-gray-50 border rounded-xl text-gray-900 font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
                   errors.name ? 'border-rose-400' : 'border-gray-200'
                 }`}
               />
@@ -209,7 +209,7 @@ export default function ProductEditorModal() {
               <select
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
               >
                 <option value="electronics">Electronics & Audio</option>
                 <option value="wearables">Smart Wearables</option>
@@ -228,7 +228,7 @@ export default function ProductEditorModal() {
                 value={formData.sellerBadge}
                 onChange={(e) => setFormData({ ...formData, sellerBadge: e.target.value })}
                 placeholder="e.g. Best Seller, Trending, 20% Off, New"
-                className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
               />
             </div>
 
@@ -249,7 +249,7 @@ export default function ProductEditorModal() {
                   value={formData.price}
                   onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                   placeholder="e.g. 1999"
-                  className={`w-full pl-7 pr-3 py-2 text-xs bg-white border rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
+                  className={`w-full pl-7 pr-3 py-2 text-xs bg-white border rounded-xl text-gray-900 font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
                     errors.price ? 'border-rose-400' : 'border-gray-200'
                   }`}
                 />
@@ -269,7 +269,7 @@ export default function ProductEditorModal() {
                   value={formData.originalPrice}
                   onChange={(e) => setFormData({ ...formData, originalPrice: e.target.value })}
                   placeholder="e.g. 3999"
-                  className="w-full pl-7 pr-3 py-2 text-xs bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="w-full pl-7 pr-3 py-2 text-xs bg-white border border-gray-200 rounded-xl text-gray-900 font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 />
               </div>
               {discountPercent > 0 && (
@@ -289,7 +289,7 @@ export default function ProductEditorModal() {
                 value={formData.stock}
                 onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
                 placeholder="e.g. 25"
-                className={`w-full px-3 py-2 text-xs bg-white border rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
+                className={`w-full px-3 py-2 text-xs bg-white border rounded-xl text-gray-900 font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
                   errors.stock ? 'border-rose-400' : 'border-gray-200'
                 }`}
               />
@@ -392,7 +392,7 @@ export default function ProductEditorModal() {
                 value={formData.image}
                 onChange={(e) => setFormData({ ...formData, image: e.target.value })}
                 placeholder="https://... or upload image above"
-                className={`flex-1 px-3 py-2 text-xs bg-gray-50 border rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
+                className={`flex-1 px-3 py-2 text-xs bg-gray-50 border rounded-xl text-gray-900 font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
                   errors.image ? 'border-rose-400' : 'border-gray-200'
                 }`}
               />
@@ -434,7 +434,7 @@ export default function ProductEditorModal() {
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               placeholder="Detailed description of features, materials, and benefits for customers..."
-              className={`w-full px-3 py-2 text-xs bg-gray-50 border rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
+              className={`w-full px-3 py-2 text-xs bg-gray-50 border rounded-xl text-gray-900 font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
                 errors.description ? 'border-rose-400' : 'border-gray-200'
               }`}
             />
@@ -451,7 +451,7 @@ export default function ProductEditorModal() {
               value={formData.features}
               onChange={(e) => setFormData({ ...formData, features: e.target.value })}
               placeholder="e.g. 40-Hour Battery Life&#10;Active Noise Cancellation&#10;IPX7 Waterproof"
-              className="w-full px-3 py-2 text-xs font-mono bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full px-3 py-2 text-xs font-mono bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
           </div>
 

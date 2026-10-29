@@ -13,7 +13,6 @@ function formatDbProduct(prod) {
     image: prod.image,
     seller_badge: prod.sellerBadge || null,
     cod_available: prod.codAvailable !== false,
-    in_stock: prod.inStock !== false && Number(prod.stock || 0) > 0,
     rating: Number(prod.rating || 5.0),
     reviews_count: Number(prod.reviewsCount || 1),
     description: prod.description || '',
