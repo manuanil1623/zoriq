@@ -14,18 +14,18 @@ export const INITIAL_PRODUCTS = [];
 export const DEFAULT_SELLER_SETTINGS = {
   // Store Identity
   storeName: 'ZORIQ',
-  tagline: 'Premium Direct-to-Consumer Electronics & Lifestyle',
+  tagline: 'Direct-to-Consumer Online Store',
   logoUrl: '/zoriq-logo.jpg',
-  contactPhone: '+91 98765 43210',
-  contactEmail: 'help@zoriq.in',
-  address: '12th Floor, Orion Tech Park, MG Road, Bengaluru, Karnataka 560001',
+  contactPhone: '',
+  contactEmail: '',
+  address: '',
   socialLinks: {
-    instagram: 'https://instagram.com/zoriq.official',
-    twitter: 'https://twitter.com/zoriq_official',
-    facebook: 'https://facebook.com/zoriq.official',
+    instagram: '',
+    twitter: '',
+    facebook: '',
   },
-  footerText: '© 2026 ZORIQ Official Store. All rights reserved.',
-  announcement: '⚡ FLASH SALE: Free Delivery on orders over ₹999 + Instant Bank Discounts!',
+  footerText: '© 2026 ZORIQ Store. All rights reserved.',
+  announcement: '⚡ Welcome to ZORIQ! Enjoy Free Delivery on eligible orders.',
 
   // Shipping Rules
   freeShippingThreshold: 999,
@@ -49,15 +49,15 @@ export const DEFAULT_SELLER_SETTINGS = {
   netBankingEnabled: true,
 
   // Tax, GST & Invoice Details
-  merchantName: 'ZORIQ Official Retails Pvt Ltd',
-  gstNumber: '29ABCDE1234F1Z5',
-  taxRate: 0, // In percentage (e.g. 0 for included/none)
+  merchantName: 'ZORIQ Store',
+  gstNumber: '',
+  taxRate: 0,
   invoicePrefix: 'ZRQ-',
-  sellerUpiId: 'zoriq@upi',
-  bankName: 'State Bank of India',
-  bankAccountNumber: '98765432100012',
-  bankIfsc: 'SBIN0001234',
-  accountHolderName: 'ZORIQ Official Store',
+  sellerUpiId: '',
+  bankName: '',
+  bankAccountNumber: '',
+  bankIfsc: '',
+  accountHolderName: '',
   currency: '₹',
 
   // Version Control & Timestamp
