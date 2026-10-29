@@ -42,18 +42,17 @@ export default function CustomerStorefront() {
   const shippingFee = sellerSettings?.standardShippingFee || 40;
   const deliveryTime = sellerSettings?.deliveryTimeEstimate || '5–9 days';
 
-  // Products for the deck (up to 6 items)
+  // Real products only — strictly from website catalog, never demo placeholders
   const deckItems = useMemo(() => {
-    if (products.length > 0) {
-      return products.slice(0, 6);
-    }
-    return [
-      { id: 'd1', name: 'Everyday Backpack', category: 'Bags', price: 1299, image: '' },
-      { id: 'd2', name: 'Steel Water Bottle', category: 'Home', price: 549, image: '' },
-      { id: 'd3', name: 'Wireless Earbuds', category: 'Audio', price: 1799, image: '' },
-      { id: 'd4', name: 'Desk Lamp', category: 'Home', price: 899, image: '' },
-    ];
+    return products.slice(0, 8);
   }, [products]);
+
+  // Keep topIndex within bounds if products list changes
+  useEffect(() => {
+    if (topIndex >= deckItems.length) {
+      setTopIndex(0);
+    }
+  }, [deckItems.length, topIndex]);
 
   // Derived categories with item counts
   const categoriesList = useMemo(() => {
@@ -292,7 +291,9 @@ export default function CustomerStorefront() {
           <div className="rv">
             <h2 className="store-h2">New in the store</h2>
             <p className="lede">
-              Drag a card aside to see the next product. Select any item to view details or add directly to your cart.
+              {deckItems.length > 0
+                ? 'Swipe or drag a card aside to explore our latest additions, or click any item to view details.'
+                : 'Products added through the Owner Portal will appear directly in this card deck.'}
             </p>
             <div className="btns">
               <a className="btn main" href="#all">
@@ -305,69 +306,96 @@ export default function CustomerStorefront() {
           </div>
 
           <div className="deck-box rv">
-            <div
-              className="deck"
-              id="deck"
-              ref={deckRef}
-              tabIndex={0}
-              aria-label="Product deck. Use left and right arrow keys or swipe."
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerUp}
-              onKeyDown={handleKeyDown}
-            >
-              {deckItems.map((it, i) => {
-                const n = deckItems.length;
-                const k = (i - topIndex + n) % n;
-                const zIndex = n - k;
-                const opacity = k > 2 ? 0 : 1;
-                const transform = `translate(${k * 12}px, ${-k * 9}px) scale(${1 - k * 0.045}) rotate(${k * 1.8}deg)`;
-
-                return (
-                  <div
-                    key={it.id || `deck-${i}`}
-                    className="card"
-                    style={{
-                      zIndex,
-                      opacity,
-                      transform,
-                    }}
-                    onClick={() => {
-                      if (it.id && setSelectedProduct) setSelectedProduct(it);
-                    }}
-                  >
-                    <div className="w-full flex-1 flex flex-col justify-center items-center">
-                      {it.image ? (
-                        <img
-                          src={it.image}
-                          alt={it.name}
-                          className="max-h-40 w-auto object-contain rounded-lg drop-shadow-md"
-                        />
-                      ) : (
-                        <div className="glyph">
-                          {it.name ? it.name.charAt(0).toUpperCase() : 'Z'}
-                        </div>
-                      )}
-                    </div>
-
-                    <div>
-                      <h3>{it.name}</h3>
-                      <div className="price">₹{it.price}</div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="hint">
-              <span className="label" id="hint">Drag or use ← →</span>
-              <div className="dots" id="dots">
-                {deckItems.map((_, i) => (
-                  <b key={i} className={i === topIndex ? 'on' : ''} />
-                ))}
+            {deckItems.length === 0 ? (
+              <div className="deck" id="deck" tabIndex={0}>
+                <div className="card text-center flex flex-col justify-center items-center p-8 bg-[#101317]">
+                  <ShoppingBag className="w-10 h-10 text-[var(--ink2)] mb-3 opacity-50" />
+                  <h3 className="text-base font-semibold text-[var(--ink)]">No Products in Store</h3>
+                  <p className="text-xs text-[var(--ink2)] mt-2 leading-relaxed max-w-[24ch]">
+                    Add your real products in the Owner Portal to display them live in this deck.
+                  </p>
+                </div>
               </div>
-            </div>
+            ) : (
+              <>
+                <div
+                  className="deck"
+                  id="deck"
+                  ref={deckRef}
+                  tabIndex={0}
+                  aria-label="Product deck. Use left and right arrow keys or swipe."
+                  onPointerDown={handlePointerDown}
+                  onPointerMove={handlePointerMove}
+                  onPointerUp={handlePointerUp}
+                  onPointerCancel={handlePointerUp}
+                  onKeyDown={handleKeyDown}
+                >
+                  {deckItems.map((it, i) => {
+                    const n = deckItems.length;
+                    const k = (i - topIndex + n) % n;
+                    const zIndex = n - k;
+                    const opacity = k > 2 ? 0 : 1;
+                    const transform = `translate(${k * 12}px, ${-k * 9}px) scale(${1 - k * 0.045}) rotate(${k * 1.8}deg)`;
+
+                    return (
+                      <div
+                        key={it.id || `deck-${i}`}
+                        className="card"
+                        style={{
+                          zIndex,
+                          opacity,
+                          transform,
+                        }}
+                        onClick={() => {
+                          if (it.id && setSelectedProduct) setSelectedProduct(it);
+                        }}
+                      >
+                        <div className="w-full flex-1 flex flex-col justify-center items-center overflow-hidden py-2">
+                          {it.image ? (
+                            <img
+                              src={it.image}
+                              alt={it.name}
+                              className="max-h-40 w-auto object-contain rounded-lg drop-shadow-md select-none pointer-events-none"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="glyph select-none">
+                              {it.name ? it.name.charAt(0).toUpperCase() : 'Z'}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="mt-2">
+                          <h3 className="truncate">{it.name}</h3>
+                          <div className="flex items-center justify-between mt-1">
+                            <span className="price font-semibold">₹{it.price}</span>
+                            <button
+                              type="button"
+                              className="text-[10px] tracking-wider uppercase px-2.5 py-1 rounded-full border border-[var(--line)] hover:border-[var(--amber)] hover:text-[var(--amber)] transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                addToCart(it);
+                              }}
+                            >
+                              Add to cart
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="hint">
+                  <span className="label" id="hint">Drag or use ← →</span>
+                  <div className="dots" id="dots">
+                    {deckItems.map((_, i) => (
+                      <b key={i} className={i === topIndex ? 'on' : ''} />
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </section>
 
