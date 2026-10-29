@@ -8,7 +8,8 @@ import {
   PlusCircle,
   LogOut,
   ShieldCheck,
-  ArrowRight
+  ArrowRight,
+  Package
 } from 'lucide-react';
 
 export default function Navbar() {
@@ -21,6 +22,7 @@ export default function Navbar() {
     cartCount,
     setIsCartOpen,
     orders,
+    customerOrders,
     setIsMyOrdersOpen,
     sellerActiveTab,
     setSellerActiveTab,
@@ -90,13 +92,16 @@ export default function Navbar() {
           <a href="#shop" className="hide-s">Shop</a>
           <a href="#info" className="hide-s">Delivery</a>
           
-          {orders.length > 0 && (
-            <a
+          {customerOrders && customerOrders.length > 0 && (
+            <button
+              type="button"
               onClick={() => setIsMyOrdersOpen(true)}
-              className="hide-s cursor-pointer"
+              className="pill-track"
+              title="Track My Orders"
             >
-              Orders ({orders.length})
-            </a>
+              <Package className="w-3.5 h-3.5 text-amber-400" />
+              <span>Track ({customerOrders.length})</span>
+            </button>
           )}
 
           {/* Only visible when the Owner has already successfully authenticated */}

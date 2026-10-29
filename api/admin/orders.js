@@ -37,11 +37,12 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'orderId is required' });
       }
 
-      const updates = {
-        updated_at: new Date().toISOString()
-      };
+      const updates = {};
       if (orderStatus) updates.order_status = orderStatus;
       if (paymentStatus) updates.payment_status = paymentStatus;
+      if (body.trackingNumber != null || body.tracking_number != null) {
+        updates.tracking_number = body.trackingNumber || body.tracking_number;
+      }
 
       const { data, error } = await supabase
         .from('orders')

@@ -345,3 +345,11 @@ export async function getCustomerOrders(orderIds = []) {
   if (!res.ok) return [];
   return Array.isArray(data) ? data.map(mapOrderFromDb) : [];
 }
+
+export async function lookupCustomerOrders(query = '') {
+  if (!query || !query.trim()) return [];
+  const res = await fetch(`/api/orders?lookup=${encodeURIComponent(query.trim())}`);
+  const data = await res.json().catch(() => ([]));
+  if (!res.ok) return [];
+  return Array.isArray(data) ? data.map(mapOrderFromDb) : [];
+}

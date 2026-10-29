@@ -441,27 +441,47 @@ export default function CustomerStorefront() {
             ) : (
               <div className="grid" id="grid">
                 {filteredProducts.map((product) => (
-                  <div key={product.id} className="pc">
-                    {product.image ? (
-                      <div className="h-28 w-full flex items-center justify-center mb-auto overflow-hidden">
+                  <div
+                    key={product.id}
+                    className="pc cursor-pointer group"
+                    onClick={() => {
+                      if (setSelectedProduct) setSelectedProduct(product);
+                    }}
+                  >
+                    <div className="pc-img-box">
+                      {product.image ? (
                         <img
                           src={product.image}
                           alt={product.name}
-                          className="max-h-full max-w-full object-contain"
+                          loading="lazy"
                         />
-                      </div>
-                    ) : (
-                      <div className="glyph">
-                        {product.name ? product.name.charAt(0).toUpperCase() : 'Z'}
-                      </div>
-                    )}
+                      ) : (
+                        <div className="glyph">
+                          {product.name ? product.name.charAt(0).toUpperCase() : 'Z'}
+                        </div>
+                      )}
+                    </div>
 
-                    <h3>{product.name}</h3>
-                    <div className="price">₹{product.price}</div>
+                    <div className="flex flex-col flex-1 justify-between gap-1 mt-1">
+                      <div>
+                        {product.category && (
+                          <span className="text-[10.5px] uppercase tracking-wider text-[var(--ink2)] block font-medium">
+                            {product.category}
+                          </span>
+                        )}
+                        <h3 className="truncate" title={product.name}>
+                          {product.name}
+                        </h3>
+                      </div>
+                      <div className="price mt-1 font-bold">₹{product.price}</div>
+                    </div>
                     
                     <button
                       type="button"
-                      onClick={() => addToCart(product)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        addToCart(product);
+                      }}
                       aria-label={`Add ${product.name} to cart`}
                     >
                       Add to cart

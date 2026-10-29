@@ -28,6 +28,7 @@ export default function CheckoutModal() {
     sellerSettings,
     placeOrder,
     setSelectedInvoice,
+    setIsMyOrdersOpen,
     addToast
   } = useStore();
 
@@ -148,7 +149,6 @@ export default function CheckoutModal() {
                   razorpayPaymentId: response.razorpay_payment_id,
                   razorpayOrderId: response.razorpay_order_id || razorpayOrderId || null,
                   razorpaySignature: response.razorpay_signature || null,
-                  upiTxnId: response.razorpay_payment_id,
                 },
               });
 
@@ -718,25 +718,37 @@ export default function CheckoutModal() {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCheckoutOpen(false);
+                  setIsMyOrdersOpen(true);
+                }}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-black font-bold text-xs shadow-md transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Truck className="w-3.5 h-3.5" />
+                <span>Track Live Order</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => {
                   setSelectedInvoice(placedOrder);
                   setIsCheckoutOpen(false);
                 }}
-                className="flex-1 py-2.5 px-4 rounded-xl border border-gray-300 hover:bg-gray-50 text-gray-800 font-semibold text-xs transition-colors flex items-center justify-center gap-1.5"
+                className="flex-1 py-2.5 px-4 rounded-xl border border-gray-300 hover:bg-gray-50 text-gray-800 font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
-                <span>View / Print Tax Invoice</span>
+                <span>Tax Invoice</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setIsCheckoutOpen(false)}
-                className="flex-1 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-md transition-colors"
+                className="flex-1 py-2.5 px-4 rounded-xl bg-gray-900 hover:bg-black text-white font-semibold text-xs shadow-md transition-colors cursor-pointer"
               >
-                Continue Shopping
+                Continue
               </button>
             </div>
 

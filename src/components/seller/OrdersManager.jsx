@@ -293,11 +293,51 @@ export default function OrdersManager() {
                     <MapPin className="w-3.5 h-3.5 text-gray-400 flex-shrink-0 mt-0.5" />
                     <span>{order.customer.address}, {order.customer.city}, {order.customer.state} - {order.customer.pincode}</span>
                   </p>
-                  {order.upiTxnId && (
-                    <p className="text-[10px] text-emerald-800 font-mono bg-emerald-50 px-2 py-1 rounded border border-emerald-200 mt-1">
-                      UTR: {order.upiTxnId}
-                    </p>
-                  )}
+
+                  {/* Dedicated Admin Payment Method Specification */}
+                  <div className="mt-2.5 pt-2 border-t border-slate-200">
+                    <span className="font-bold uppercase tracking-wider text-[10px] text-gray-400 block mb-1">
+                      Payment Method (Admin Specification)
+                    </span>
+                    {order.paymentMethod === 'RAZORPAY' || order.razorpayPaymentId ? (
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2.5 text-xs">
+                        <div className="flex items-center gap-1.5 font-bold text-emerald-900">
+                          <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Razorpay Online Gateway (Prepaid)</span>
+                        </div>
+                        <p className="text-[11px] text-emerald-700 mt-0.5 font-medium">
+                          ✓ Payment verified & settled. Deliver package directly with NO cash collection.
+                        </p>
+                        {order.razorpayPaymentId && (
+                          <p className="text-[10.5px] font-mono text-emerald-950 font-bold mt-1 bg-emerald-100/60 px-2 py-0.5 rounded select-all inline-block">
+                            Razorpay ID: {order.razorpayPaymentId}
+                          </p>
+                        )}
+                      </div>
+                    ) : order.paymentMethod === 'COD' ? (
+                      <div className="bg-amber-50 border border-amber-300 rounded-lg p-2.5 text-xs">
+                        <div className="flex items-center gap-1.5 font-bold text-amber-950">
+                          <Banknote className="w-3.5 h-3.5 text-amber-700" />
+                          <span>Cash on Delivery (COD)</span>
+                        </div>
+                        <p className="text-[11px] text-amber-900 font-bold mt-0.5">
+                          ⚠️ Unpaid Order — Instruct delivery agent to collect ₹{order.total?.toLocaleString('en-IN')} in cash or UPI scanner upon delivery.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 text-xs">
+                        <div className="flex items-center gap-1.5 font-bold text-blue-900">
+                          <CreditCard className="w-3.5 h-3.5 text-blue-700" />
+                          <span>Direct UPI Transfer</span>
+                        </div>
+                        {order.upiTxnId && (
+                          <p className="text-[10.5px] font-mono text-blue-950 font-bold mt-1 bg-blue-100/60 px-2 py-0.5 rounded select-all inline-block">
+                            Customer UTR: {order.upiTxnId}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Items in Order */}

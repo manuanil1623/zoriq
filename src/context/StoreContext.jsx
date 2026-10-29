@@ -54,7 +54,8 @@ export function StoreProvider({ children }) {
   // 2. Real-time Database States (Loaded from Supabase, NO localStorage copy)
   const [products, setProducts] = useState([]);
   const [sellerSettings, setSellerSettings] = useState(DEFAULT_SELLER_SETTINGS);
-  const [orders, setOrders] = useState([]);
+  const [adminOrders, setAdminOrders] = useState([]);
+  const [customerOrders, setCustomerOrders] = useState([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
 
   // 3. Cart State with LocalStorage (Only cart and admin token live in localStorage)
@@ -350,7 +351,7 @@ export function StoreProvider({ children }) {
     if (!adminToken) return;
     try {
       const ordersList = await adminGetOrders(adminToken);
-      setOrders(ordersList);
+      setAdminOrders(ordersList);
     } catch (err) {
       console.error('Error fetching admin orders:', err);
     }
@@ -362,24 +363,31 @@ export function StoreProvider({ children }) {
     }
   }, [isAdminLoggedIn, role, fetchAdminOrdersList]);
 
-  // Load customer's placed orders for "My Orders" modal
+  // Load customer's placed orders on this phone / laptop for tracking
   const loadCustomerOrdersList = useCallback(async () => {
     try {
       const savedIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMER_ORDER_IDS) || '[]');
       if (savedIds.length > 0) {
-        const customerOrders = await getCustomerOrders(savedIds);
-        setOrders(customerOrders);
+        const fetched = await getCustomerOrders(savedIds);
+        setCustomerOrders(fetched);
+      } else {
+        setCustomerOrders([]);
       }
     } catch (err) {
       console.warn('Error loading customer orders:', err);
     }
   }, []);
 
+  // Run on initial load so customer knows if they have orders
   useEffect(() => {
-    if (isMyOrdersOpen && !isAdminLoggedIn) {
+    loadCustomerOrdersList();
+  }, [loadCustomerOrdersList]);
+
+  useEffect(() => {
+    if (isMyOrdersOpen) {
       loadCustomerOrdersList();
     }
-  }, [isMyOrdersOpen, isAdminLoggedIn, loadCustomerOrdersList]);
+  }, [isMyOrdersOpen, loadCustomerOrdersList]);
 
   // --- Cart Calculations ---
   const cartCount = cart.reduce((total, item) => total + item.quantity, 0);
@@ -523,8 +531,9 @@ export function StoreProvider({ children }) {
         }
       } catch {}
 
-      // Prepend to current orders state for immediate receipt/invoice view
-      setOrders((prev) => [createdOrder, ...prev.filter((o) => o.id !== createdOrder.id)]);
+      // Save to customer orders and admin orders state
+      setCustomerOrders((prev) => [createdOrder, ...prev.filter((o) => o.id !== createdOrder.id)]);
+      setAdminOrders((prev) => [createdOrder, ...prev.filter((o) => o.id !== createdOrder.id)]);
 
       // Clear cart
       clearCart();
@@ -705,7 +714,8 @@ export function StoreProvider({ children }) {
     try {
       const updatedOrder = await adminUpdateOrderStatus(orderId, newStatus, null, adminToken);
       if (updatedOrder) {
-        setOrders((prev) => prev.map((o) => (o.id === orderId ? updatedOrder : o)));
+        setAdminOrders((prev) => prev.map((o) => (o.id === orderId ? updatedOrder : o)));
+        setCustomerOrders((prev) => prev.map((o) => (o.id === orderId ? updatedOrder : o)));
       }
       addToast(`Order #${orderId} marked as ${newStatus}`, 'success');
     } catch (err) {
@@ -718,7 +728,8 @@ export function StoreProvider({ children }) {
     try {
       const updatedOrder = await adminUpdateOrderStatus(orderId, null, newPaymentStatus, adminToken);
       if (updatedOrder) {
-        setOrders((prev) => prev.map((o) => (o.id === orderId ? updatedOrder : o)));
+        setAdminOrders((prev) => prev.map((o) => (o.id === orderId ? updatedOrder : o)));
+        setCustomerOrders((prev) => prev.map((o) => (o.id === orderId ? updatedOrder : o)));
       }
       addToast(`Order #${orderId} payment marked as "${newPaymentStatus}"`, 'info');
     } catch (err) {
@@ -883,7 +894,9 @@ export function StoreProvider({ children }) {
         isCheckoutOpen,
         setIsCheckoutOpen,
         placeOrder,
-        orders,
+        orders: role === 'seller' ? adminOrders : customerOrders,
+        adminOrders,
+        customerOrders,
         updateOrderStatus,
         updatePaymentStatus,
         isMyOrdersOpen,

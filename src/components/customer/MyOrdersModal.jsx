@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useStore } from '../../context/StoreContext';
+import { lookupCustomerOrders } from '../../services/supabase';
 import {
   X,
   Package,
@@ -11,7 +12,9 @@ import {
   CreditCard,
   ShoppingBag,
   ExternalLink,
-  ChevronRight
+  ChevronRight,
+  Search,
+  Loader2
 } from 'lucide-react';
 
 const STATUS_STEPS = ['Placed', 'Confirmed', 'Shipped', 'Out for Delivery', 'Delivered'];
@@ -21,15 +24,55 @@ export default function MyOrdersModal() {
     isMyOrdersOpen,
     setIsMyOrdersOpen,
     orders,
+    customerOrders,
+    loadCustomerOrdersList,
     setSelectedInvoice,
-    sellerSettings
+    sellerSettings,
+    addToast
   } = useStore();
 
   const [filter, setFilter] = useState('all');
+  const [lookupQuery, setLookupQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
 
   if (!isMyOrdersOpen) return null;
 
-  const filteredOrders = orders.filter((order) => {
+  const displayOrders = customerOrders && customerOrders.length > 0 ? customerOrders : orders;
+
+  const handleLookupOrder = async () => {
+    if (!lookupQuery.trim()) return;
+    setIsSearching(true);
+    try {
+      const found = await lookupCustomerOrders(lookupQuery.trim());
+      if (found && found.length > 0) {
+        const savedIds = JSON.parse(localStorage.getItem('zoriq_customer_order_ids') || '[]');
+        found.forEach((o) => {
+          if (!savedIds.includes(o.id)) savedIds.unshift(o.id);
+        });
+        localStorage.setItem('zoriq_customer_order_ids', JSON.stringify(savedIds));
+        if (loadCustomerOrdersList) {
+          await loadCustomerOrdersList();
+        }
+        if (addToast) {
+          addToast(`Found ${found.length} order(s) and linked for live tracking!`, 'success');
+        }
+        setLookupQuery('');
+      } else {
+        if (addToast) {
+          addToast('No order found matching that Order ID or Phone number.', 'warning');
+        }
+      }
+    } catch (err) {
+      console.error('Track order lookup error:', err);
+      if (addToast) {
+        addToast('Could not look up order. Please verify your details.', 'error');
+      }
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const filteredOrders = displayOrders.filter((order) => {
     if (filter === 'all') return true;
     if (filter === 'delivered') return order.orderStatus === 'Delivered';
     if (filter === 'active') return order.orderStatus !== 'Delivered' && order.orderStatus !== 'Cancelled';
@@ -53,15 +96,39 @@ export default function MyOrdersModal() {
               My Orders & Live Tracking
             </h2>
             <span className="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-0.5 rounded-full">
-              {orders.length} Total
+              {displayOrders.length}
             </span>
           </div>
 
           <button
             onClick={() => setIsMyOrdersOpen(false)}
-            className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-200/50 rounded-full transition-colors"
+            className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-200/50 rounded-full transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Quick Track Lookup Bar */}
+        <div className="px-4 sm:px-5 py-3 bg-slate-100/70 border-b border-gray-200 flex flex-col sm:flex-row items-center gap-2">
+          <div className="relative flex-1 w-full">
+            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={lookupQuery}
+              onChange={(e) => setLookupQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleLookupOrder()}
+              placeholder="Track other order: Enter Order ID (e.g. ZQ-...) or 10-digit Phone..."
+              className="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleLookupOrder}
+            disabled={isSearching || !lookupQuery.trim()}
+            className="w-full sm:w-auto px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap shadow-sm"
+          >
+            {isSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Package className="w-3.5 h-3.5" />}
+            <span>Track Order</span>
           </button>
         </div>
 
@@ -73,7 +140,7 @@ export default function MyOrdersModal() {
               filter === 'all' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-200/60'
             }`}
           >
-            All Orders ({orders.length})
+            All Orders ({displayOrders.length})
           </button>
           <button
             onClick={() => setFilter('active')}
@@ -119,12 +186,16 @@ export default function MyOrdersModal() {
                         </span>
                         <span
                           className={`font-semibold px-2 py-0.5 rounded-full text-[10px] ${
-                            order.paymentMethod === 'UPI'
+                            order.paymentMethod === 'RAZORPAY' || order.razorpayPaymentId || order.paymentMethod === 'UPI'
                               ? 'bg-emerald-100 text-emerald-800'
                               : 'bg-amber-100 text-amber-800'
                           }`}
                         >
-                          {order.paymentMethod === 'UPI' ? 'UPI Paid' : 'Cash on Delivery'}
+                          {order.paymentMethod === 'RAZORPAY' || order.razorpayPaymentId
+                            ? 'Razorpay Paid'
+                            : order.paymentMethod === 'UPI'
+                            ? 'UPI Paid'
+                            : 'Cash on Delivery'}
                         </span>
                       </div>
                       <span className="text-gray-400 text-[11px] mt-0.5 block">

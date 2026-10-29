@@ -10,11 +10,26 @@ export default async function handler(req, res) {
 
   const supabase = getSupabaseAdmin();
 
-  // GET: Customer tracking / viewing specific orders by IDs
+  // GET: Customer tracking / viewing specific orders by IDs or phone lookup
   if (req.method === 'GET') {
     try {
       const urlObj = new URL(req.url, 'http://localhost');
       const idsParam = urlObj.searchParams.get('ids') || req.query?.ids;
+      const lookup = urlObj.searchParams.get('lookup') || req.query?.lookup;
+
+      // Track by specific Order ID or Phone number
+      if (lookup) {
+        const clean = lookup.trim();
+        const { data, error } = await supabase
+          .from('orders')
+          .select('*')
+          .or(`id.ilike.%${clean}%,customer->>phone.ilike.%${clean}%`)
+          .order('created_at', { ascending: false })
+          .limit(10);
+
+        if (error) throw error;
+        return sendJson(res, 200, data || []);
+      }
 
       if (!idsParam) {
         return sendJson(res, 200, []);
@@ -240,7 +255,7 @@ export default async function handler(req, res) {
         total: serverTotal,
         payment_method: paymentMethod || 'COD',
         payment_status: paymentStatus,
-        upi_txn_id: paymentDetails.razorpayPaymentId || paymentDetails.upiTxnId || null,
+        upi_txn_id: paymentMethod === 'UPI' ? (paymentDetails.upiTxnId || null) : null,
         razorpay_payment_id: paymentDetails.razorpayPaymentId || null,
         razorpay_order_id: paymentDetails.razorpayOrderId || null,
         razorpay_signature: paymentDetails.razorpaySignature || null,
