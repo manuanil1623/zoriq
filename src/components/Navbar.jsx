@@ -99,16 +99,19 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 gap-4">
           
-          {/* Brand Logo */}
+          {/* Brand Logo & Wordmark */}
           <div className="flex items-center gap-3">
             <div
               onClick={() => {
                 if (role === 'seller') setRole('customer');
               }}
-              className="flex items-center gap-2 cursor-pointer group"
+              className="flex items-center gap-2.5 cursor-pointer group"
               title="ZORIQ — Shop More. Live Better."
             >
               <ZoriqLogo size="compact" />
+              <span className="font-syne font-bold text-xl tracking-tight text-gray-950 group-hover:text-indigo-600 transition-colors">
+                ZORIQ<span className="text-indigo-600">.</span>
+              </span>
               {role === 'seller' && (
                 <span className="hidden sm:inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
                   <Store className="w-3 h-3" />

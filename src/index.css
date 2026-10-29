@@ -14,6 +14,14 @@
     font-family: 'JetBrains Mono', monospace, ui-monospace;
   }
 
+  .font-syne {
+    font-family: 'Syne', system-ui, sans-serif;
+  }
+
+  .font-sora {
+    font-family: 'Sora', system-ui, sans-serif;
+  }
+
   .font-serif-luxury {
     font-family: 'Newsreader', 'Playfair Display', Georgia, serif;
     font-feature-settings: "liga" 1, "dlig" 1;

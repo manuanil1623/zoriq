@@ -1,10 +1,10 @@
 import React from 'react';
 import { useStore } from '../../context/StoreContext';
-import HeroBanner from './HeroBanner';
+import ZoriqOpeningHero from './ZoriqOpeningHero';
 import CategoryBar from './CategoryBar';
 import ProductCard from './ProductCard';
 import ZoriqLogo from '../ZoriqLogo';
-import { ShoppingBag, Search, Sparkles, Lock } from 'lucide-react';
+import { ShoppingBag, Search, Sparkles, Lock, Star } from 'lucide-react';
 
 export default function CustomerStorefront() {
   const {
@@ -43,11 +43,37 @@ export default function CustomerStorefront() {
     return 0; // 'featured' retains natural catalog order
   });
 
+  // Real featured products (only from real database items that have a badge)
+  const featuredProducts = (selectedCategory === 'all' && !searchQuery)
+    ? products.filter((p) => Boolean(p.seller_badge || p.sellerBadge)).slice(0, 4)
+    : [];
+
   return (
     <div className="pb-16 animate-in fade-in">
       
-      {/* Hero Banner */}
-      <HeroBanner />
+      {/* Cinematic ZORIQ Opening Hero with Split Word & Parting Curtains */}
+      <ZoriqOpeningHero />
+
+      {/* Featured Products Spotlight (Only if real products with badges exist in database) */}
+      {featuredProducts.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-500" />
+              <h2 className="text-base sm:text-lg font-bold text-gray-900 font-syne tracking-tight">
+                Featured Highlights
+              </h2>
+            </div>
+            <span className="text-xs text-gray-400 font-medium">Curated directly from store catalog</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {featuredProducts.map((product) => (
+              <ProductCard key={`featured-${product.id}`} product={product} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Category Pills & Sort Bar */}
       <CategoryBar />
