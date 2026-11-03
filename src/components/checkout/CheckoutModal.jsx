@@ -29,6 +29,9 @@ export default function CheckoutModal() {
     placeOrder,
     setSelectedInvoice,
     setIsMyOrdersOpen,
+    isCustomerLoggedIn,
+    customerUser,
+    setIsAuthModalOpen,
     addToast
   } = useStore();
 
@@ -69,6 +72,30 @@ export default function CheckoutModal() {
 
   // Placed order reference for success confirmation screen
   const [placedOrder, setPlacedOrder] = useState(null);
+
+  // Mandatory customer login check
+  useEffect(() => {
+    if (isCheckoutOpen && !isCustomerLoggedIn) {
+      setIsCheckoutOpen(false);
+      setIsAuthModalOpen(true);
+      addToast('Please sign in or create an account to proceed with your order!', 'warning');
+    }
+  }, [isCheckoutOpen, isCustomerLoggedIn, setIsCheckoutOpen, setIsAuthModalOpen, addToast]);
+
+  // Pre-fill customer details from customerUser profile
+  useEffect(() => {
+    if (customerUser) {
+      setCustomer((prev) => ({
+        name: customerUser.name || prev.name,
+        phone: customerUser.phone || prev.phone,
+        email: customerUser.email || prev.email,
+        address: customerUser.address || prev.address,
+        city: customerUser.city || prev.city,
+        state: customerUser.state || prev.state || 'Kerala',
+        pincode: customerUser.pincode || prev.pincode,
+      }));
+    }
+  }, [customerUser, isCheckoutOpen]);
 
   // Reset state when checkout opens
   useEffect(() => {

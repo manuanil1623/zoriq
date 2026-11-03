@@ -101,6 +101,58 @@ export function verifyAdminToken(token) {
 }
 
 /**
+ * Signs a customer session token containing customer id, email, phone, and name
+ */
+export function signCustomerToken(customer) {
+  const secret = getSessionSecret();
+  const payload = {
+    role: 'customer',
+    id: customer.id,
+    email: (customer.email || '').toLowerCase().trim(),
+    phone: (customer.phone || '').trim(),
+    name: customer.name || 'Valued Customer',
+    iat: Date.now(),
+    exp: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
+  };
+  const payloadStr = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const signature = crypto
+    .createHmac('sha256', secret)
+    .update(payloadStr)
+    .digest('base64url');
+  return `${payloadStr}.${signature}`;
+}
+
+/**
+ * Decodes and verifies customer token signature & expiration
+ */
+export function decodeAndVerifyCustomerToken(token) {
+  if (!token || typeof token !== 'string') return null;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 2) return null;
+    const [payloadStr, signature] = parts;
+    const secret = getSessionSecret();
+    const expectedSignature = crypto
+      .createHmac('sha256', secret)
+      .update(payloadStr)
+      .digest('base64url');
+
+    if (signature.length !== expectedSignature.length) return null;
+    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
+      return null;
+    }
+
+    const payload = JSON.parse(Buffer.from(payloadStr, 'base64url').toString('utf8'));
+    if (payload.role !== 'customer') return null;
+    if (payload.exp && payload.exp < Date.now()) return null;
+
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Middleware ensuring valid admin token AND verifying that tokenVersion
  * matches the latest token_version in private_settings (invalidates other sessions on password change)
  */

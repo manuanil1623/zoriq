@@ -15,7 +15,8 @@ import {
   Info,
   Banknote,
   Upload,
-  Loader2
+  Loader2,
+  ShieldCheck
 } from 'lucide-react';
 
 export default function ProductEditorModal() {
@@ -145,27 +146,32 @@ export default function ProductEditorModal() {
     }
   };
 
-  const discountPercent = formData.originalPrice && Number(formData.originalPrice) > Number(formData.price)
-    ? Math.round(((Number(formData.originalPrice) - Number(formData.price)) / Number(formData.originalPrice)) * 100)
-    : 0;
+  const discountPercent =
+    formData.originalPrice && Number(formData.originalPrice) > Number(formData.price)
+      ? Math.round(
+          ((Number(formData.originalPrice) - Number(formData.price)) /
+            Number(formData.originalPrice)) *
+            100
+        )
+      : 0;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
-      <div className="bg-white rounded-3xl max-w-3xl w-full overflow-hidden shadow-2xl border border-gray-100 relative my-6 max-h-[92vh] flex flex-col">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
+      <div className="bg-[#101317]/95 text-[var(--ink)] rounded-3xl max-w-3xl w-full overflow-hidden shadow-2xl border border-white/10 relative my-6 max-h-[92vh] flex flex-col backdrop-blur-2xl">
         
-        {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-indigo-500/30 flex items-center justify-center text-amber-300">
-              <Sparkles className="w-4 h-4" />
+        {/* Header in Liquid Glass */}
+        <div className="p-4 sm:p-5 border-b border-white/10 flex items-center justify-between bg-black/40">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-[var(--amber)]">
+              <Sparkles className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-bold">
-                {isEditing ? 'Owner Editor: Modify Product' : 'Owner Editor: Add New Product to Store'}
+              <span className="text-[10px] font-mono tracking-widest text-[var(--amber)] uppercase block font-bold">
+                Owner Portal Editor
+              </span>
+              <h2 className="text-base sm:text-lg font-bold text-white font-['Syne']">
+                {isEditing ? 'Modify Product Information' : 'Add New Product to Storefront'}
               </h2>
-              <p className="text-xs text-indigo-200">
-                Configure details, pricing, inventory stock, and catalog images
-              </p>
             </div>
           </div>
 
@@ -174,42 +180,42 @@ export default function ProductEditorModal() {
               setIsProductEditorOpen(false);
               setProductToEdit(null);
             }}
-            className="p-1.5 text-gray-400 hover:text-white rounded-full transition-colors"
+            className="p-2 text-[var(--ink2)] hover:text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-5 sm:p-6 overflow-y-auto space-y-5 flex-1 text-xs">
+        {/* Form Body in Liquid Glass */}
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1 text-xs">
           
-          {/* Section 1: Basic Info */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Section 1: Basic Product Information */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             
             <div className="sm:col-span-2">
-              <label className="block font-semibold text-gray-700 mb-1">
+              <label className="block text-[11px] font-semibold text-[var(--ink2)] mb-1 uppercase tracking-wider">
                 Product Title / Name *
               </label>
               <input
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="e.g. UltraClear Noise Cancelling Wireless Headphones"
-                className={`w-full px-3 py-2 text-xs bg-gray-50 border rounded-xl text-gray-900 font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
-                  errors.name ? 'border-rose-400' : 'border-gray-200'
+                placeholder="e.g. Minimalist Titanium Chronograph Watch"
+                className={`w-full px-3.5 py-2.5 bg-black/50 border rounded-xl text-white placeholder-gray-500 font-medium focus:outline-none focus:border-[var(--amber)] focus:ring-1 focus:ring-[var(--amber)] ${
+                  errors.name ? 'border-rose-500' : 'border-white/10'
                 }`}
               />
-              {errors.name && <p className="text-rose-500 text-[11px] mt-0.5">{errors.name}</p>}
+              {errors.name && <p className="text-rose-400 text-[11px] mt-1">{errors.name}</p>}
             </div>
 
             <div>
-              <label className="block font-semibold text-gray-700 mb-1">
+              <label className="block text-[11px] font-semibold text-[var(--ink2)] mb-1 uppercase tracking-wider">
                 Category *
               </label>
               <select
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full px-3.5 py-2.5 bg-black/50 border border-white/10 rounded-xl text-gray-200 font-medium focus:outline-none focus:border-[var(--amber)] focus:ring-1 focus:ring-[var(--amber)] cursor-pointer"
               >
                 <option value="electronics">Electronics & Audio</option>
                 <option value="wearables">Smart Wearables</option>
@@ -220,67 +226,67 @@ export default function ProductEditorModal() {
             </div>
 
             <div>
-              <label className="block font-semibold text-gray-700 mb-1">
+              <label className="block text-[11px] font-semibold text-[var(--ink2)] mb-1 uppercase tracking-wider">
                 Seller Badge / Tag (Optional)
               </label>
               <input
                 type="text"
                 value={formData.sellerBadge}
                 onChange={(e) => setFormData({ ...formData, sellerBadge: e.target.value })}
-                placeholder="e.g. Best Seller, Trending, 20% Off, New"
-                className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                placeholder="e.g. Best Seller, Trending, 20% Off"
+                className="w-full px-3.5 py-2.5 bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-500 font-medium focus:outline-none focus:border-[var(--amber)] focus:ring-1 focus:ring-[var(--amber)]"
               />
             </div>
 
           </div>
 
           {/* Section 2: Pricing & Stock Inventory */}
-          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+          <div className="p-4 bg-white/[0.03] rounded-2xl border border-white/10 grid grid-cols-1 sm:grid-cols-3 gap-3.5">
             
             <div>
-              <label className="block font-semibold text-gray-700 mb-1">
+              <label className="block text-[11px] font-semibold text-[var(--ink2)] mb-1 uppercase tracking-wider">
                 Selling Price (₹ INR) *
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">₹</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">₹</span>
                 <input
                   type="number"
                   min="1"
                   value={formData.price}
                   onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                   placeholder="e.g. 1999"
-                  className={`w-full pl-7 pr-3 py-2 text-xs bg-white border rounded-xl text-gray-900 font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
-                    errors.price ? 'border-rose-400' : 'border-gray-200'
+                  className={`w-full pl-7 pr-3 py-2 bg-black/50 border rounded-xl text-white font-bold font-['Syne'] focus:outline-none focus:border-[var(--amber)] focus:ring-1 focus:ring-[var(--amber)] ${
+                    errors.price ? 'border-rose-500' : 'border-white/10'
                   }`}
                 />
               </div>
-              {errors.price && <p className="text-rose-500 text-[11px] mt-0.5">{errors.price}</p>}
+              {errors.price && <p className="text-rose-400 text-[11px] mt-1">{errors.price}</p>}
             </div>
 
             <div>
-              <label className="block font-semibold text-gray-700 mb-1">
-                Original MSRP Price (₹)
+              <label className="block text-[11px] font-semibold text-[var(--ink2)] mb-1 uppercase tracking-wider">
+                Original MSRP (₹)
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">₹</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">₹</span>
                 <input
                   type="number"
                   min="1"
                   value={formData.originalPrice}
                   onChange={(e) => setFormData({ ...formData, originalPrice: e.target.value })}
                   placeholder="e.g. 3999"
-                  className="w-full pl-7 pr-3 py-2 text-xs bg-white border border-gray-200 rounded-xl text-gray-900 font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="w-full pl-7 pr-3 py-2 bg-black/50 border border-white/10 rounded-xl text-gray-300 font-bold font-['Syne'] focus:outline-none focus:border-[var(--amber)] focus:ring-1 focus:ring-[var(--amber)]"
                 />
               </div>
               {discountPercent > 0 && (
-                <span className="text-[10px] text-emerald-600 font-bold block mt-1">
+                <span className="text-[10px] text-emerald-400 font-bold block mt-1">
                   Shows {discountPercent}% discount to buyers!
                 </span>
               )}
             </div>
 
             <div>
-              <label className="block font-semibold text-gray-700 mb-1">
+              <label className="block text-[11px] font-semibold text-[var(--ink2)] mb-1 uppercase tracking-wider">
                 Stock Quantity (Units) *
               </label>
               <input
@@ -289,11 +295,11 @@ export default function ProductEditorModal() {
                 value={formData.stock}
                 onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
                 placeholder="e.g. 25"
-                className={`w-full px-3 py-2 text-xs bg-white border rounded-xl text-gray-900 font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
-                  errors.stock ? 'border-rose-400' : 'border-gray-200'
+                className={`w-full px-3 py-2 bg-black/50 border rounded-xl text-white font-mono focus:outline-none focus:border-[var(--amber)] focus:ring-1 focus:ring-[var(--amber)] ${
+                  errors.stock ? 'border-rose-500' : 'border-white/10'
                 }`}
               />
-              {errors.stock && <p className="text-rose-500 text-[11px] mt-0.5">{errors.stock}</p>}
+              {errors.stock && <p className="text-rose-400 text-[11px] mt-1">{errors.stock}</p>}
             </div>
 
           </div>
@@ -301,33 +307,33 @@ export default function ProductEditorModal() {
           {/* Section 2.5: Cash on Delivery (COD) Control */}
           <div className={`p-3.5 rounded-2xl border transition-all ${
             formData.codAvailable
-              ? 'bg-emerald-50/70 border-emerald-200'
-              : 'bg-amber-50/70 border-amber-200'
+              ? 'bg-emerald-500/10 border-emerald-500/30'
+              : 'bg-amber-500/10 border-amber-500/30'
           }`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-                  formData.codAvailable ? 'bg-emerald-600 text-white' : 'bg-amber-600 text-white'
+                  formData.codAvailable ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
                 }`}>
                   <Banknote className="w-4 h-4" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-gray-900 text-xs">
+                    <span className="font-bold text-white text-xs">
                       Cash on Delivery (COD) Availability
                     </span>
                     <span className={`text-[10px] font-bold px-2 py-0.2 rounded-full ${
                       formData.codAvailable
-                        ? 'bg-emerald-200 text-emerald-900'
-                        : 'bg-amber-200 text-amber-900'
+                        ? 'bg-emerald-500/20 text-emerald-300'
+                        : 'bg-amber-500/20 text-amber-300'
                     }`}>
-                      {formData.codAvailable ? 'COD Enabled' : 'Prepaid Only (No COD)'}
+                      {formData.codAvailable ? 'COD Enabled' : 'Prepaid Only'}
                     </span>
                   </div>
-                  <span className="text-[11px] text-gray-500 block mt-0.5">
+                  <span className="text-[11px] text-[var(--ink2)] block mt-0.5">
                     {formData.codAvailable
-                      ? 'Customers can pay with cash or delivery agent QR upon doorstep arrival.'
-                      : 'Disabled: Customers MUST pay in advance using UPI/Online (No cash on delivery for this product).'}
+                      ? 'Customers can pay with cash or delivery agent QR upon doorstep delivery.'
+                      : 'Disabled: Customer MUST pay in advance using UPI/Online payment.'}
                   </span>
                 </div>
               </div>
@@ -339,7 +345,7 @@ export default function ProductEditorModal() {
                   onChange={(e) => setFormData({ ...formData, codAvailable: e.target.checked })}
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600" />
+                <div className="w-11 h-6 bg-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500" />
               </label>
             </div>
           </div>
@@ -347,7 +353,7 @@ export default function ProductEditorModal() {
           {/* Section 3: Product Image URL & Upload */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="block font-semibold text-gray-700">
+              <label className="block text-[11px] font-semibold text-[var(--ink2)] uppercase tracking-wider">
                 Product Image *
               </label>
               <div>
@@ -362,7 +368,7 @@ export default function ProductEditorModal() {
                   type="button"
                   disabled={isUploadingImage}
                   onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold border border-indigo-200 transition-colors disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/15 hover:bg-amber-500/25 text-[var(--amber)] rounded-xl text-xs font-semibold border border-amber-500/30 transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   {isUploadingImage ? (
                     <>
@@ -380,28 +386,28 @@ export default function ProductEditorModal() {
             </div>
 
             <div className="flex gap-3 items-center">
-              <div className="w-14 h-14 rounded-xl bg-gray-100 border border-gray-200 overflow-hidden flex-shrink-0 flex items-center justify-center">
+              <div className="w-14 h-14 rounded-xl bg-black/50 border border-white/10 overflow-hidden flex-shrink-0 flex items-center justify-center">
                 {formData.image ? (
                   <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
                 ) : (
-                  <ImageIcon className="w-6 h-6 text-gray-400" />
+                  <ImageIcon className="w-6 h-6 text-gray-500" />
                 )}
               </div>
               <input
                 type="url"
                 value={formData.image}
                 onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-                placeholder="https://... or upload image above"
-                className={`flex-1 px-3 py-2 text-xs bg-gray-50 border rounded-xl text-gray-900 font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
-                  errors.image ? 'border-rose-400' : 'border-gray-200'
+                placeholder="https://... or upload image with button above"
+                className={`flex-1 px-3.5 py-2.5 text-xs bg-black/50 border rounded-xl text-white placeholder-gray-500 font-medium focus:outline-none focus:border-[var(--amber)] focus:ring-1 focus:ring-[var(--amber)] ${
+                  errors.image ? 'border-rose-500' : 'border-white/10'
                 }`}
               />
             </div>
-            {errors.image && <p className="text-rose-500 text-[11px] mt-0.5">{errors.image}</p>}
+            {errors.image && <p className="text-rose-400 text-[11px] mt-1">{errors.image}</p>}
 
             {/* Quick Presets Picker */}
             <div className="pt-1">
-              <span className="text-[10px] text-gray-500 block mb-1 font-medium">
+              <span className="text-[10px] text-[var(--ink2)] block mb-1 font-medium">
                 Or select from curated high-res product photos:
               </span>
               <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
@@ -410,13 +416,13 @@ export default function ProductEditorModal() {
                     key={preset.name}
                     type="button"
                     onClick={() => setFormData({ ...formData, image: preset.url })}
-                    className={`flex items-center gap-1.5 p-1 rounded-lg border text-[11px] transition-all whitespace-nowrap ${
+                    className={`flex items-center gap-1.5 p-1 rounded-xl border text-[11px] transition-all whitespace-nowrap cursor-pointer ${
                       formData.image === preset.url
-                        ? 'border-indigo-600 bg-indigo-50 font-bold text-indigo-700 ring-1 ring-indigo-500'
-                        : 'border-gray-200 hover:bg-gray-100 text-gray-600'
+                        ? 'border-amber-500 bg-amber-500/15 font-bold text-[var(--amber)]'
+                        : 'border-white/10 hover:bg-white/5 text-gray-400'
                     }`}
                   >
-                    <img src={preset.url} alt={preset.name} className="w-4 h-4 rounded object-cover" />
+                    <img src={preset.url} alt={preset.name} className="w-4 h-4 rounded-lg object-cover" />
                     <span>{preset.name}</span>
                   </button>
                 ))}
@@ -426,24 +432,24 @@ export default function ProductEditorModal() {
 
           {/* Section 4: Description */}
           <div>
-            <label className="block font-semibold text-gray-700 mb-1">
+            <label className="block text-[11px] font-semibold text-[var(--ink2)] mb-1 uppercase tracking-wider">
               Description *
             </label>
             <textarea
               rows={3}
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Detailed description of features, materials, and benefits for customers..."
-              className={`w-full px-3 py-2 text-xs bg-gray-50 border rounded-xl text-gray-900 font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
-                errors.description ? 'border-rose-400' : 'border-gray-200'
+              placeholder="Detailed description of product features, materials, and buyer benefits..."
+              className={`w-full px-3.5 py-2 text-xs bg-black/50 border rounded-xl text-white placeholder-gray-500 font-medium focus:outline-none focus:border-[var(--amber)] focus:ring-1 focus:ring-[var(--amber)] ${
+                errors.description ? 'border-rose-500' : 'border-white/10'
               }`}
             />
-            {errors.description && <p className="text-rose-500 text-[11px] mt-0.5">{errors.description}</p>}
+            {errors.description && <p className="text-rose-400 text-[11px] mt-1">{errors.description}</p>}
           </div>
 
           {/* Section 5: Highlights / Bullet Points */}
           <div>
-            <label className="block font-semibold text-gray-700 mb-1">
+            <label className="block text-[11px] font-semibold text-[var(--ink2)] mb-1 uppercase tracking-wider">
               Feature Highlights (One item per line)
             </label>
             <textarea
@@ -451,12 +457,12 @@ export default function ProductEditorModal() {
               value={formData.features}
               onChange={(e) => setFormData({ ...formData, features: e.target.value })}
               placeholder="e.g. 40-Hour Battery Life&#10;Active Noise Cancellation&#10;IPX7 Waterproof"
-              className="w-full px-3 py-2 text-xs font-mono bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full px-3.5 py-2 text-xs font-mono bg-black/50 border border-white/10 rounded-xl text-gray-200 placeholder-gray-500 focus:outline-none focus:border-[var(--amber)] focus:ring-1 focus:ring-[var(--amber)]"
             />
           </div>
 
           {/* Footer Submit Buttons */}
-          <div className="pt-3 border-t border-gray-100 flex items-center justify-end gap-2">
+          <div className="pt-3 border-t border-white/10 flex items-center justify-end gap-2.5">
             <button
               type="button"
               disabled={isSaving || isUploadingImage}
@@ -464,23 +470,23 @@ export default function ProductEditorModal() {
                 setIsProductEditorOpen(false);
                 setProductToEdit(null);
               }}
-              className="px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50"
+              className="px-5 py-2.5 rounded-xl border border-white/10 text-gray-300 font-semibold hover:bg-white/5 transition-colors disabled:opacity-50 cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSaving || isUploadingImage}
-              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold shadow-md shadow-emerald-600/30 transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-60"
+              className="px-6 py-2.5 rounded-xl bg-[var(--amber)] hover:bg-[#d67e2a] text-black font-bold shadow-lg shadow-amber-500/20 transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-60 cursor-pointer"
             >
               {isSaving ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin text-black" />
                   <span>Saving...</span>
                 </>
               ) : (
                 <>
-                  <Check className="w-4 h-4" />
+                  <Check className="w-4 h-4 stroke-[2.5]" />
                   <span>{isEditing ? 'Save Product Changes' : 'Publish Product to Store'}</span>
                 </>
               )}

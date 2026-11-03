@@ -17,6 +17,10 @@ import {
   adminUpdateOrderStatus,
   createCustomerOrder,
   getCustomerOrders,
+  customerSignUp,
+  customerLogin,
+  customerGetProfile,
+  customerUpdateProfile,
 } from '../services/supabase';
 
 const StoreContext = createContext();
@@ -25,6 +29,8 @@ const STORAGE_KEYS = {
   CART: 'nexmart_cart_v1',
   ADMIN_TOKEN: 'zoriq_admin_session_token',
   CUSTOMER_ORDER_IDS: 'zoriq_my_order_ids',
+  CUSTOMER_TOKEN: 'zoriq_customer_token',
+  CUSTOMER_USER: 'zoriq_customer_user',
 };
 
 // Immediate cleanup of old legacy localStorage products/orders/sync items
@@ -38,7 +44,29 @@ try {
 } catch {}
 
 export function StoreProvider({ children }) {
-  // 1. Admin Authentication (Token-based, verified on server)
+  // 1. Customer Authentication (Token-based, mandatory for ordering & personal order tracking)
+  const [customerToken, setCustomerToken] = useState(() => {
+    try {
+      return localStorage.getItem(STORAGE_KEYS.CUSTOMER_TOKEN) || '';
+    } catch {
+      return '';
+    }
+  });
+
+  const [customerUser, setCustomerUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.CUSTOMER_USER);
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const isCustomerLoggedIn = Boolean(customerToken && customerUser);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState('login'); // 'login' | 'signup'
+
+  // 2. Admin Authentication (Token-based, verified on server)
   const [adminToken, setAdminToken] = useState(() => {
     try {
       return localStorage.getItem(STORAGE_KEYS.ADMIN_TOKEN) || '';
@@ -51,14 +79,14 @@ export function StoreProvider({ children }) {
   const [role, setRole] = useState(() => (adminToken ? 'seller' : 'customer'));
   const [isAdminLoginModalOpen, setIsAdminLoginModalOpen] = useState(false);
 
-  // 2. Real-time Database States (Loaded from Supabase, NO localStorage copy)
+  // 3. Real-time Database States (Loaded from Supabase, NO localStorage copy)
   const [products, setProducts] = useState([]);
   const [sellerSettings, setSellerSettings] = useState(DEFAULT_SELLER_SETTINGS);
   const [adminOrders, setAdminOrders] = useState([]);
   const [customerOrders, setCustomerOrders] = useState([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
 
-  // 3. Cart State with LocalStorage (Only cart and admin token live in localStorage)
+  // 4. Cart State with LocalStorage (Only cart and tokens live in localStorage)
   const [cart, setCart] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.CART);
@@ -137,6 +165,36 @@ export function StoreProvider({ children }) {
       isMounted = false;
     };
   }, [adminToken]);
+
+  // Verify Customer Token & Profile on mount
+  useEffect(() => {
+    if (!customerToken) {
+      setCustomerUser(null);
+      return;
+    }
+
+    let isMounted = true;
+    customerGetProfile(customerToken).then((profile) => {
+      if (!isMounted) return;
+      if (profile) {
+        setCustomerUser(profile);
+        try {
+          localStorage.setItem(STORAGE_KEYS.CUSTOMER_USER, JSON.stringify(profile));
+        } catch {}
+      } else {
+        setCustomerToken('');
+        setCustomerUser(null);
+        try {
+          localStorage.removeItem(STORAGE_KEYS.CUSTOMER_TOKEN);
+          localStorage.removeItem(STORAGE_KEYS.CUSTOMER_USER);
+        } catch {}
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [customerToken]);
 
   // Conflict State for Multi-Device Settings Editing
   const [hasSettingsConflict, setHasSettingsConflict] = useState(false);
@@ -363,20 +421,23 @@ export function StoreProvider({ children }) {
     }
   }, [isAdminLoggedIn, role, fetchAdminOrdersList]);
 
-  // Load customer's placed orders on this phone / laptop for tracking
+  // Load customer's personal orders strictly for the authenticated person who ordered
   const loadCustomerOrdersList = useCallback(async () => {
     try {
-      const savedIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMER_ORDER_IDS) || '[]');
-      if (savedIds.length > 0) {
-        const fetched = await getCustomerOrders(savedIds);
+      if (customerToken) {
+        // Authenticated customer: fetch their personal order history directly from database
+        const fetched = await getCustomerOrders([], customerToken);
         setCustomerOrders(fetched);
-      } else {
-        setCustomerOrders([]);
+        return;
       }
+
+      // If customer is not logged in, order data is not loaded (strictly private)
+      setCustomerOrders([]);
     } catch (err) {
       console.warn('Error loading customer orders:', err);
+      setCustomerOrders([]);
     }
-  }, []);
+  }, [customerToken]);
 
   // Run on initial load so customer knows if they have orders
   useEffect(() => {
@@ -505,8 +566,21 @@ export function StoreProvider({ children }) {
 
   // --- Customer Order Placement (Creates via Server Route /api/orders) ---
   const placeOrder = async ({ customer, paymentMethod, paymentDetails = {} }) => {
+    // Enforce mandatory customer login
+    if (!customerToken || !customerUser) {
+      setIsAuthModalOpen(true);
+      addToast('Please sign in or create an account to place and track your order!', 'warning');
+      throw new Error('Please sign in or create an account to place your order.');
+    }
+
     const payload = {
-      customer,
+      customer: {
+        ...customer,
+        userId: customerUser?.id,
+        email: customer?.email || customerUser?.email,
+        phone: customer?.phone || customerUser?.phone,
+        name: customer?.name || customerUser?.name,
+      },
       items: [...cart],
       subtotal: cartSubtotal,
       discount: discountAmount,
@@ -518,18 +592,7 @@ export function StoreProvider({ children }) {
     };
 
     try {
-      const createdOrder = await createCustomerOrder(payload);
-
-      // Save order ID in customer's local list for "My Orders" tracking
-      try {
-        const savedIds = JSON.parse(
-          localStorage.getItem(STORAGE_KEYS.CUSTOMER_ORDER_IDS) || '[]'
-        );
-        if (!savedIds.includes(createdOrder.id)) {
-          savedIds.unshift(createdOrder.id);
-          localStorage.setItem(STORAGE_KEYS.CUSTOMER_ORDER_IDS, JSON.stringify(savedIds));
-        }
-      } catch {}
+      const createdOrder = await createCustomerOrder(payload, customerToken);
 
       // Save to customer orders and admin orders state
       setCustomerOrders((prev) => [createdOrder, ...prev.filter((o) => o.id !== createdOrder.id)]);
@@ -542,6 +605,72 @@ export function StoreProvider({ children }) {
     } catch (err) {
       console.error('Order creation error:', err);
       addToast(`Order failed: ${err.message}`, 'error');
+      throw err;
+    }
+  };
+
+  // --- Customer Authentication Actions ---
+  const loginCustomer = async (identifier, password) => {
+    try {
+      const res = await customerLogin({ identifier, password });
+      setCustomerToken(res.token);
+      setCustomerUser(res.user);
+      try {
+        localStorage.setItem(STORAGE_KEYS.CUSTOMER_TOKEN, res.token);
+        localStorage.setItem(STORAGE_KEYS.CUSTOMER_USER, JSON.stringify(res.user));
+      } catch {}
+      setIsAuthModalOpen(false);
+      addToast(res.message || 'Logged in successfully!', 'success');
+      return { success: true, user: res.user };
+    } catch (err) {
+      console.error('Customer login error:', err);
+      addToast(err.message || 'Login failed.', 'error');
+      throw err;
+    }
+  };
+
+  const signupCustomer = async (formData) => {
+    try {
+      const res = await customerSignUp(formData);
+      setCustomerToken(res.token);
+      setCustomerUser(res.user);
+      try {
+        localStorage.setItem(STORAGE_KEYS.CUSTOMER_TOKEN, res.token);
+        localStorage.setItem(STORAGE_KEYS.CUSTOMER_USER, JSON.stringify(res.user));
+      } catch {}
+      setIsAuthModalOpen(false);
+      addToast(res.message || 'Account created successfully!', 'success');
+      return { success: true, user: res.user };
+    } catch (err) {
+      console.error('Customer signup error:', err);
+      addToast(err.message || 'Signup failed.', 'error');
+      throw err;
+    }
+  };
+
+  const logoutCustomer = () => {
+    setCustomerToken('');
+    setCustomerUser(null);
+    setCustomerOrders([]);
+    try {
+      localStorage.removeItem(STORAGE_KEYS.CUSTOMER_TOKEN);
+      localStorage.removeItem(STORAGE_KEYS.CUSTOMER_USER);
+    } catch {}
+    addToast('Signed out of customer account.', 'info');
+  };
+
+  const updateCustomerProfile = async (profileData) => {
+    try {
+      const updated = await customerUpdateProfile(profileData, customerToken);
+      setCustomerUser(updated);
+      try {
+        localStorage.setItem(STORAGE_KEYS.CUSTOMER_USER, JSON.stringify(updated));
+      } catch {}
+      addToast('Profile updated successfully!', 'success');
+      return updated;
+    } catch (err) {
+      console.error('Profile update error:', err);
+      addToast(err.message || 'Failed to update profile.', 'error');
       throw err;
     }
   };
@@ -848,6 +977,19 @@ export function StoreProvider({ children }) {
   return (
     <StoreContext.Provider
       value={{
+        // Customer Authentication & Tracking (Mandatory for ordering)
+        customerToken,
+        customerUser,
+        isCustomerLoggedIn,
+        isAuthModalOpen,
+        setIsAuthModalOpen,
+        authModalMode,
+        setAuthModalMode,
+        loginCustomer,
+        signupCustomer,
+        logoutCustomer,
+        updateCustomerProfile,
+
         // Role & Admin Security
         role,
         setRole,

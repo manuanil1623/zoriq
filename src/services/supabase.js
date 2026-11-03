@@ -322,10 +322,13 @@ export async function createRazorpayServerOrder(items, customer, discount) {
   return data;
 }
 
-export async function createCustomerOrder(orderPayload) {
+export async function createCustomerOrder(orderPayload, customerToken = '') {
+  const headers = { 'Content-Type': 'application/json' };
+  if (customerToken) headers.Authorization = `Bearer ${customerToken}`;
+
   const res = await fetch('/api/orders', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(orderPayload),
   });
   const data = await res.json().catch(() => ({}));
@@ -338,9 +341,16 @@ export async function createCustomerOrder(orderPayload) {
   return mapOrderFromDb(data.order);
 }
 
-export async function getCustomerOrders(orderIds = []) {
-  if (!orderIds || orderIds.length === 0) return [];
-  const res = await fetch(`/api/orders?ids=${encodeURIComponent(orderIds.join(','))}`);
+export async function getCustomerOrders(orderIds = [], customerToken = '') {
+  const headers = {};
+  if (customerToken) headers.Authorization = `Bearer ${customerToken}`;
+
+  let url = '/api/orders';
+  if (orderIds && orderIds.length > 0) {
+    url += `?ids=${encodeURIComponent(orderIds.join(','))}`;
+  }
+
+  const res = await fetch(url, { headers });
   const data = await res.json().catch(() => ([]));
   if (!res.ok) return [];
   return Array.isArray(data) ? data.map(mapOrderFromDb) : [];
@@ -352,4 +362,59 @@ export async function lookupCustomerOrders(query = '') {
   const data = await res.json().catch(() => ([]));
   if (!res.ok) return [];
   return Array.isArray(data) ? data.map(mapOrderFromDb) : [];
+}
+
+// --- Customer Authentication API Functions ---
+
+export async function customerSignUp(signUpData) {
+  const res = await fetch('/api/customer/auth', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'signup', ...signUpData }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to create customer account.');
+  }
+  return data;
+}
+
+export async function customerLogin(loginData) {
+  const res = await fetch('/api/customer/auth', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'login', ...loginData }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || 'Invalid login credentials.');
+  }
+  return data;
+}
+
+export async function customerGetProfile(token) {
+  if (!token) return null;
+  const res = await fetch('/api/customer/auth', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return null;
+  return data.user || null;
+}
+
+export async function customerUpdateProfile(profileData, token) {
+  if (!token) throw new Error('Customer authentication token required.');
+  const res = await fetch('/api/customer/auth', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ action: 'update_profile', ...profileData }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to update customer profile.');
+  }
+  return data.user;
 }

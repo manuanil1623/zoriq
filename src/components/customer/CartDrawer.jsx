@@ -28,6 +28,9 @@ export default function CartDrawer() {
     applyCouponCode,
     removeCoupon,
     setIsCheckoutOpen,
+    isCustomerLoggedIn,
+    setIsAuthModalOpen,
+    addToast,
     sellerSettings
   } = useStore();
 
@@ -271,11 +274,16 @@ export default function CartDrawer() {
               <button
                 onClick={() => {
                   setIsCartOpen(false);
-                  setIsCheckoutOpen(true);
+                  if (!isCustomerLoggedIn) {
+                    setIsAuthModalOpen(true);
+                    addToast('Please sign in or create an account to proceed with checkout & live tracking!', 'warning');
+                  } else {
+                    setIsCheckoutOpen(true);
+                  }
                 }}
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-sm shadow-lg shadow-indigo-600/30 transition-all active:scale-95"
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-bold text-sm shadow-lg shadow-amber-500/25 transition-all active:scale-95 cursor-pointer"
               >
-                <span>Proceed to Checkout</span>
+                <span>{isCustomerLoggedIn ? 'Proceed to Checkout' : 'Sign In to Checkout'}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
 

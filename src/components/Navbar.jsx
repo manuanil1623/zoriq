@@ -9,7 +9,8 @@ import {
   LogOut,
   ShieldCheck,
   ArrowRight,
-  Package
+  Package,
+  User
 } from 'lucide-react';
 
 export default function Navbar() {
@@ -28,6 +29,11 @@ export default function Navbar() {
     setSellerActiveTab,
     setIsProductEditorOpen,
     setProductToEdit,
+    isCustomerLoggedIn,
+    customerUser,
+    setIsAuthModalOpen,
+    setAuthModalMode,
+    logoutCustomer,
   } = useStore();
 
   const handleOpenAddProduct = () => {
@@ -92,7 +98,43 @@ export default function Navbar() {
           <a href="#shop" className="hide-s">Shop</a>
           <a href="#info" className="hide-s">Delivery</a>
           
-          {customerOrders && customerOrders.length > 0 && (
+          {/* Customer Authentication & Live Tracking */}
+          {isCustomerLoggedIn ? (
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setIsMyOrdersOpen(true)}
+                className="pill flex items-center gap-1.5 text-xs font-semibold"
+                title="View My Orders & Account"
+              >
+                <User className="w-3.5 h-3.5 text-amber-400" />
+                <span className="truncate max-w-[85px] sm:max-w-[120px]">{customerUser?.name?.split(' ')[0] || 'Account'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={logoutCustomer}
+                className="p-1.5 text-gray-400 hover:text-rose-400 transition-colors cursor-pointer"
+                title="Sign Out"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setAuthModalMode('login');
+                setIsAuthModalOpen(true);
+              }}
+              className="pill flex items-center gap-1 text-xs"
+              title="Customer Login / Register"
+            >
+              <User className="w-3.5 h-3.5 text-gray-400" />
+              <span>Sign In</span>
+            </button>
+          )}
+
+          {isCustomerLoggedIn && customerOrders && customerOrders.length > 0 && (
             <button
               type="button"
               onClick={() => setIsMyOrdersOpen(true)}

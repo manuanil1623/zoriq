@@ -7,6 +7,7 @@ import CartDrawer from './components/customer/CartDrawer';
 import CheckoutModal from './components/checkout/CheckoutModal';
 import MyOrdersModal from './components/customer/MyOrdersModal';
 import InvoiceModal from './components/customer/InvoiceModal';
+import CustomerAuthModal from './components/customer/CustomerAuthModal';
 import SellerPortal from './components/seller/SellerPortal';
 import ProductEditorModal from './components/seller/ProductEditorModal';
 import AdminLoginModal from './components/seller/AdminLoginModal';
@@ -29,6 +30,7 @@ function StoreApp() {
       <ProductDetailModal />
       <CartDrawer />
       <CheckoutModal />
+      <CustomerAuthModal />
       <MyOrdersModal />
       <InvoiceModal />
       <ProductEditorModal />

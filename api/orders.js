@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { setCorsHeaders, parseJsonBody, sendJson } from './_lib/auth.js';
+import { setCorsHeaders, parseJsonBody, sendJson, decodeAndVerifyCustomerToken } from './_lib/auth.js';
 import { getSupabaseAdmin } from './_lib/supabaseAdmin.js';
 
 export default async function handler(req, res) {
@@ -10,14 +10,44 @@ export default async function handler(req, res) {
 
   const supabase = getSupabaseAdmin();
 
-  // GET: Customer tracking / viewing specific orders by IDs or phone lookup
+  // GET: Customer tracking / viewing personal orders
   if (req.method === 'GET') {
     try {
       const urlObj = new URL(req.url, 'http://localhost');
       const idsParam = urlObj.searchParams.get('ids') || req.query?.ids;
       const lookup = urlObj.searchParams.get('lookup') || req.query?.lookup;
 
-      // Track by specific Order ID or Phone number
+      // 1. If customer is authenticated with token, return ONLY their personal orders
+      const authHeader = req.headers.authorization || req.headers.Authorization || '';
+      const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : authHeader.trim();
+      const customerPayload = decodeAndVerifyCustomerToken(token);
+
+      if (customerPayload && customerPayload.id) {
+        const cleanEmail = (customerPayload.email || '').toLowerCase().trim();
+        const cleanPhone = (customerPayload.phone || '').trim();
+        const customerId = customerPayload.id;
+
+        let query = supabase
+          .from('orders')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (cleanEmail && cleanPhone) {
+          query = query.or(`customer->>email.ilike.%${cleanEmail}%,customer->>phone.eq.${cleanPhone},customer->>userId.eq.${customerId}`);
+        } else if (cleanEmail) {
+          query = query.or(`customer->>email.ilike.%${cleanEmail}%,customer->>userId.eq.${customerId}`);
+        } else if (cleanPhone) {
+          query = query.or(`customer->>phone.eq.${cleanPhone},customer->>userId.eq.${customerId}`);
+        } else {
+          query = query.eq('customer->>userId', customerId);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        return sendJson(res, 200, data || []);
+      }
+
+      // 2. Track by specific Order ID or Phone number
       if (lookup) {
         const clean = lookup.trim();
         const { data, error } = await supabase
@@ -244,9 +274,22 @@ export default async function handler(req, res) {
         orderStatus = 'Confirmed';
       }
 
+      // Attach authenticated customer identity
+      const orderAuthHeader = req.headers.authorization || req.headers.Authorization || '';
+      const orderToken = orderAuthHeader.startsWith('Bearer ') ? orderAuthHeader.slice(7).trim() : orderAuthHeader.trim();
+      const orderCustomerPayload = decodeAndVerifyCustomerToken(orderToken);
+
+      const enrichedCustomer = {
+        ...customer,
+        userId: orderCustomerPayload?.id || customer?.userId || null,
+        email: (customer?.email || orderCustomerPayload?.email || '').toLowerCase().trim(),
+        phone: (customer?.phone || orderCustomerPayload?.phone || '').trim(),
+        name: customer?.name || orderCustomerPayload?.name || ''
+      };
+
       const orderRow = {
         id: orderId,
-        customer,
+        customer: enrichedCustomer,
         items,
         subtotal: computedSubtotal,
         discount: Number(discount || 0),
