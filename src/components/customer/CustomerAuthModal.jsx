@@ -125,6 +125,7 @@ export default function CustomerAuthModal() {
           <button
             type="button"
             onClick={() => {
+              if (!identifier && email) setIdentifier(email);
               setAuthModalMode('login');
               setErrorMsg('');
             }}
@@ -139,6 +140,7 @@ export default function CustomerAuthModal() {
           <button
             type="button"
             onClick={() => {
+              if (!email && identifier.includes('@')) setEmail(identifier);
               setAuthModalMode('signup');
               setErrorMsg('');
             }}
@@ -155,8 +157,21 @@ export default function CustomerAuthModal() {
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 text-xs">
           {errorMsg && (
-            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-medium">
-              {errorMsg}
+            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-medium flex items-center justify-between gap-2">
+              <span className="flex-1">{errorMsg}</span>
+              {errorMsg.toLowerCase().includes('already exists') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIdentifier(email || identifier);
+                    setAuthModalMode('login');
+                    setErrorMsg('');
+                  }}
+                  className="px-2.5 py-1 bg-white text-rose-900 font-bold rounded-lg text-[11px] whitespace-nowrap shadow-sm hover:bg-gray-100 transition-colors"
+                >
+                  Sign In Now
+                </button>
+              )}
             </div>
           )}
 

@@ -14,8 +14,9 @@ export default function CustomerStorefront() {
     setIsAdminLoginModalOpen,
   } = useStore();
 
-  // Active Category filter
+  // Active Category & Search filters
   const [activeCat, setActiveCat] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Hero refs
   const heroRef = useRef(null);
@@ -27,6 +28,9 @@ export default function CustomerStorefront() {
   const daRef = useRef(null);
   const dbRef = useRef(null);
   const introRef = useRef(null);
+  const emRef = useRef(null);
+  const mfRef = useRef(null);
+  const mbarRef = useRef(null);
 
   // Deck state
   const deckRef = useRef(null);
@@ -69,12 +73,17 @@ export default function CustomerStorefront() {
 
   // Filtered products for grid
   const filteredProducts = useMemo(() => {
-    if (activeCat === 'All') return products;
     return products.filter((p) => {
       const cat = p.category ? p.category.charAt(0).toUpperCase() + p.category.slice(1) : 'General';
-      return cat === activeCat;
+      const matchesCat = activeCat === 'All' || cat === activeCat;
+      const q = searchQuery.trim().toLowerCase();
+      const matchesQuery = !q ||
+        (p.name && p.name.toLowerCase().includes(q)) ||
+        (p.category && p.category.toLowerCase().includes(q)) ||
+        (p.description && p.description.toLowerCase().includes(q));
+      return matchesCat && matchesQuery;
     });
-  }, [products, activeCat]);
+  }, [products, activeCat, searchQuery]);
 
   // 1. SCROLL PORTAL ANIMATION (Exact formula from demo)
   useEffect(() => {
@@ -87,7 +96,8 @@ export default function CustomerStorefront() {
       const hero = heroRef.current;
       if (!hero) return;
 
-      const total = hero.offsetHeight - window.innerHeight;
+      const vh = window.innerHeight;
+      const total = hero.offsetHeight - vh;
       if (total <= 0) return;
 
       const p = clamp(-hero.getBoundingClientRect().top / total, 0, 1);
@@ -101,6 +111,13 @@ export default function CustomerStorefront() {
         wordRef.current.style.opacity = 1 - clamp((p - 0.78) / 0.22, 0, 1);
       }
 
+      // Z monogram reveal
+      if (emRef.current) {
+        const k = clamp((p - 0.74) / 0.22, 0, 1);
+        emRef.current.style.opacity = k;
+        emRef.current.style.transform = `translateY(${Math.round((1 - k) * 28)}px) scale(${(0.85 + 0.15 * k).toFixed(3)})`;
+      }
+
       if (w1Ref.current) w1Ref.current.style.transform = `translateX(${-p * 55}%)`;
       if (w2Ref.current) w2Ref.current.style.transform = `translateX(${p * 55}%)`;
 
@@ -111,6 +128,14 @@ export default function CustomerStorefront() {
       if (dbRef.current) dbRef.current.style.transform = `translate(${p * w * 0.42}px, ${p * h * 0.34}px)`;
 
       if (introRef.current) introRef.current.style.opacity = 1 - clamp((p - 0.25) / 0.3, 0, 1);
+
+      // Manifesto progress bar
+      const mf = mfRef.current;
+      if (mf && mbarRef.current) {
+        const mfTotal = mf.offsetHeight - vh;
+        const q = clamp((vh * 0.5 - mf.getBoundingClientRect().top) / (mfTotal + vh * 0.5), 0, 1);
+        mbarRef.current.style.width = `${clamp(q / 0.85, 0, 1) * 100}%`;
+      }
     };
 
     window.addEventListener('scroll', portal, { passive: true });
@@ -254,6 +279,11 @@ export default function CustomerStorefront() {
 
           {/* Center ZORIQ + Small store text */}
           <div className="center">
+            {/* Z monogram revealed inside the opening */}
+            <div className="zq-em" id="zq-em" ref={emRef} aria-hidden="true">
+              Z<i>.</i>
+            </div>
+
             <div className="word" id="word" ref={wordRef}>
               <span id="w1" ref={w1Ref}>ZOR</span>
               <span id="w2" ref={w2Ref}>IQ</span>
@@ -284,7 +314,22 @@ export default function CustomerStorefront() {
         </div>
       </header>
 
-      {/* 2. MAIN STORE CONTENT */}
+      {/* 2. MANIFESTO WORD REVEAL SECTION */}
+      <section className="zq-mf" id="zq-mf" ref={mfRef} aria-label="About ZORIQ">
+        <div className="zq-mf-s">
+          <span className="zq-mcount label">Welcome</span>
+          <a className="zq-skip label" href="#shop">Skip to shop ↓</a>
+          <p className="zq-mf-p a" id="zq-mf1">
+            Welcome to the <span className="hl">next evolution</span> of daily living. At ZORIQ, we bridge the gap between <span className="hl">uncompromising aesthetic</span> and <span className="hl">everyday utility</span>—curating precision-designed essentials crafted to elevate your space, routine, and lifestyle.
+          </p>
+          <p className="zq-mf-p b" id="zq-mf2">
+            Every product in our inaugural collection is selected with strict attention to quality, functionality, and value. Supported by seamless payments, swift express shipping, and a commitment to customer excellence, setting <span className="hl">a higher standard</span> for your everyday life begins right here.
+          </p>
+          <div className="zq-mbar"><i id="zq-mbar" ref={mbarRef}></i></div>
+        </div>
+      </section>
+
+      {/* 3. MAIN STORE CONTENT */}
       <main className="store" id="shop">
         
         {/* NEW IN THE STORE SECTION: DECK */}
@@ -400,25 +445,32 @@ export default function CustomerStorefront() {
           </div>
         </section>
 
-        {/* CATEGORIES AND PRODUCT GRID */}
+        {/* CATEGORIES, SEARCH AND PRODUCT GRID */}
         <section className="wrap" style={{ paddingTop: 0 }} id="all">
           <div className="rv">
-            <span className="label">Categories</span>
-            
-            {/* Category Rows */}
-            <div className="rows" id="rows">
-              {categoriesList.map(([catName, count], idx) => (
-                <button
-                  key={catName}
-                  type="button"
-                  className={`row ${catName === activeCat ? 'on' : ''}`}
-                  onClick={() => setActiveCat(catName)}
-                >
-                  <span className="label">{idx === 0 ? 'Everything' : 'Category'}</span>
-                  <span className="name">{catName}</span>
-                  <span className="count">{count} {count === 1 ? 'item' : 'items'}</span>
-                </button>
-              ))}
+            {/* Search + Category Filter Chips */}
+            <div className="zq-tools mb-6">
+              <input
+                type="search"
+                className="zq-search"
+                placeholder="Search essentials, electronics, fashion, home..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                aria-label="Search catalog"
+              />
+              <div className="zq-chips" role="tablist" aria-label="Product categories">
+                {categoriesList.map(([catName, count]) => (
+                  <button
+                    key={catName}
+                    type="button"
+                    className={`zq-chip ${catName === activeCat ? 'on' : ''}`}
+                    onClick={() => setActiveCat(catName)}
+                  >
+                    <span>{catName}</span>
+                    <span>{count}</span>
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Products Grid */}
@@ -435,8 +487,17 @@ export default function CustomerStorefront() {
             ) : filteredProducts.length === 0 ? (
               <div className="my-12 text-center border border-[var(--line)] rounded-2xl p-8 bg-[var(--ground2)]">
                 <p className="text-sm text-[var(--ink2)]">
-                  No products found in category "{activeCat}".
+                  {searchQuery ? `No products match "${searchQuery}".` : `No products found in category "${activeCat}".`}
                 </p>
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="mt-3 text-xs text-emerald-600 font-semibold underline cursor-pointer"
+                  >
+                    Clear search
+                  </button>
+                )}
               </div>
             ) : (
               <div className="grid" id="grid">

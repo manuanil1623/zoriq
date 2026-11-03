@@ -147,10 +147,12 @@ export default async function handler(req, res) {
         // If user entered phone number without @, look up user by phone in metadata
         let emailToAuth = identifier;
         if (!identifier.includes('@')) {
-          const { data: listData } = await supabase.auth.admin.listUsers();
-          const match = listData?.users?.find(
-            (u) => u.user_metadata?.phone?.replace(/\D/g, '') === identifier.replace(/\D/g, '')
-          );
+          const cleanPhone = identifier.replace(/\D/g, '').slice(-10);
+          const { data: listData } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+          const match = listData?.users?.find((u) => {
+            const uPhone = (u.user_metadata?.phone || '').replace(/\D/g, '').slice(-10);
+            return uPhone && uPhone === cleanPhone;
+          });
           if (match?.email) {
             emailToAuth = match.email;
           } else {

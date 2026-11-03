@@ -38,6 +38,7 @@ export default defineConfig(({ mode }) => {
               '/api/admin/orders': './api/admin/orders.js',
               '/api/admin/upload': './api/admin/upload.js',
               '/api/orders': './api/orders.js',
+              '/api/customer/auth': './api/customer/auth.js',
             };
 
             const handlerFile = routeMap[pathname];
