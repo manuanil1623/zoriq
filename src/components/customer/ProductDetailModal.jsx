@@ -193,8 +193,8 @@ export default function ProductDetailModal() {
               </div>
             </div>
 
-            {/* Actions: Quantity + Add To Cart + Buy Now */}
-            <div className="space-y-3 pt-3 border-t border-white/10">
+            {/* Actions: Quantity + Add To Cart + Buy Now - Pinned to bottom on desktop & sticky on mobile */}
+            <div className="space-y-3 pt-3 border-t border-white/10 mt-auto sticky bottom-0 bg-[#101317]/95 sm:bg-transparent backdrop-blur-md sm:backdrop-blur-none -mx-6 px-6 sm:mx-0 sm:px-0 py-3 sm:py-0 z-10">
               {!isOutOfStock && (
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-[var(--ink2)]">Select Quantity:</span>

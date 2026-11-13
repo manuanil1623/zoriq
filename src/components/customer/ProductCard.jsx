@@ -105,7 +105,7 @@ export default function ProductCard({ product }) {
         </div>
 
         {/* Pricing & Add To Cart Button */}
-        <div className="pt-2 border-t border-gray-100">
+        <div className="pt-2 border-t border-gray-100 mt-auto">
           <div className="flex items-baseline gap-2 mb-3">
             <span className="text-lg font-bold text-gray-900">
               ₹{product.price?.toLocaleString('en-IN')}

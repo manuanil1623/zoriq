@@ -504,7 +504,7 @@ export default function CustomerStorefront() {
                 {filteredProducts.map((product) => (
                   <div
                     key={product.id}
-                    className="pc cursor-pointer group"
+                    className="pc cursor-pointer group flex flex-col justify-between"
                     onClick={() => {
                       if (setSelectedProduct) setSelectedProduct(product);
                     }}
@@ -523,22 +523,33 @@ export default function CustomerStorefront() {
                       )}
                     </div>
 
-                    <div className="flex flex-col flex-1 justify-between gap-1 mt-1">
+                    <div className="flex flex-col flex-1 justify-between gap-1 mt-2">
                       <div>
                         {product.category && (
-                          <span className="text-[10.5px] uppercase tracking-wider text-[var(--ink2)] block font-medium">
+                          <span className="text-[10px] sm:text-[11px] uppercase tracking-wider text-[var(--ink2)] block font-semibold">
                             {product.category}
                           </span>
                         )}
-                        <h3 className="truncate" title={product.name}>
+                        <h3 className="line-clamp-2 text-sm sm:text-base font-bold text-[var(--ink)] mt-0.5 leading-snug" title={product.name}>
                           {product.name}
                         </h3>
                       </div>
-                      <div className="price mt-1 font-bold">₹{product.price}</div>
+                      
+                      <div className="mt-auto pt-2 flex items-baseline justify-between">
+                        <div className="price font-extrabold text-base sm:text-lg text-[var(--amber)]">
+                          ₹{product.price?.toLocaleString('en-IN')}
+                        </div>
+                        {product.originalPrice && product.originalPrice > product.price && (
+                          <span className="text-xs text-[var(--ink2)] line-through">
+                            ₹{product.originalPrice?.toLocaleString('en-IN')}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     
                     <button
                       type="button"
+                      className="w-full mt-3"
                       onClick={(e) => {
                         e.stopPropagation();
                         addToCart(product);
