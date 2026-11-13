@@ -16,6 +16,7 @@ export default function CustomerStorefront() {
   const {
     products,
     sellerSettings,
+    storeImages,
     addToCart,
     setSelectedProduct,
     toggleWishlist,
@@ -114,16 +115,17 @@ export default function CustomerStorefront() {
   };
 
   const supportWhatsapp = sellerSettings?.supportWhatsapp || '919876543210';
+  const heroImage = storeImages?.hero || sellerSettings?.heroImage || '';
 
   return (
     <div className="bg-[#fcfbf8] text-[#1c1a17]">
       {/* 1. HERO SECTION */}
       <section
-        className={`hero ${sellerSettings?.heroImage ? 'hasimg' : ''}`}
-        style={sellerSettings?.heroImage ? { backgroundImage: `url(${sellerSettings.heroImage})` } : undefined}
+        className={`hero ${heroImage ? 'hasimg' : ''}`}
+        style={heroImage ? { backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.22), rgba(0,0,0,0.55)), url(${heroImage})` } : undefined}
       >
         {/* Floating subtle geometric illustration (only shown on default gradient) */}
-        {!sellerSettings?.heroImage && (
+        {!heroImage && (
           <div className="art" aria-hidden="true">
             <svg viewBox="0 0 200 250" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect width="200" height="250" rx="16" fill="rgba(255,255,255,0.4)" />
@@ -168,7 +170,7 @@ export default function CustomerStorefront() {
       <div id="collections" className="wrap">
         <div className="cols">
           {collectionsWithImages.map((col, idx) => {
-            const customColImg = sellerSettings?.collectionImages?.[col.category];
+            const customColImg = storeImages?.cols?.[col.category] || storeImages?.cols?.[col.category?.toLowerCase()] || sellerSettings?.collectionImages?.[col.category];
             const displayImg = customColImg || col.image;
 
             return (

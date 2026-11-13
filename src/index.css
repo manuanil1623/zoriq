@@ -1297,7 +1297,7 @@ footer.ft {
     --hh: 76px;
   }
   .burger {
-    display: none;
+    display: flex;
   }
   .dnav {
     display: flex;
@@ -1392,7 +1392,8 @@ footer.ft {
     margin-top: 0;
   }
   #menu {
-    display: none;
+    width: 380px;
+    max-width: 90vw;
   }
 }
 

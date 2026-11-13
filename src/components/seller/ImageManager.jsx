@@ -1,19 +1,25 @@
 import React, { useRef, useState } from 'react';
 import { useStore } from '../../context/StoreContext';
-import { Upload, Trash2, ArrowRight, RefreshCw, Image as ImageIcon } from 'lucide-react';
+import { Upload, Trash2, ArrowRight, RefreshCw } from 'lucide-react';
 
 export default function ImageManager() {
   const {
+    storeImages,
+    updateHeroImage,
+    removeHeroImage,
+    updateCollectionImage,
+    removeCollectionImage,
     sellerSettings,
-    updateSellerSettings,
     products,
     setSellerActiveTab,
     addToast
   } = useStore();
 
   const heroInputRef = useRef(null);
-  const [activeUploadCol, setActiveUploadCol] = useState(null);
   const colInputRef = useRef(null);
+  const [activeUploadCol, setActiveUploadCol] = useState(null);
+  const [isUploadingHero, setIsUploadingHero] = useState(false);
+  const [uploadingColName, setUploadingColName] = useState(null);
 
   // Dynamic unique collections from products catalog or defaults
   const collectionsList = React.useMemo(() => {
@@ -35,11 +41,15 @@ export default function ImageManager() {
     return list;
   }, [products]);
 
-  // Local or settings image data
-  const heroImage = sellerSettings?.heroImage || '';
-  const collectionImages = sellerSettings?.collectionImages || {};
+  // Current hero image (from storeImages or legacy sellerSettings)
+  const heroImage = storeImages?.hero || sellerSettings?.heroImage || '';
 
-  // Image shrink / compression helper
+  // Current collection image getter
+  const getColImg = (col) => {
+    return storeImages?.cols?.[col] || sellerSettings?.collectionImages?.[col] || '';
+  };
+
+  // Image shrink / compression helper using canvas
   const shrinkImage = (file, maxWidth, callback) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -70,78 +80,58 @@ export default function ImageManager() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    shrinkImage(file, 1400, async (dataUrl) => {
+    setIsUploadingHero(true);
+    shrinkImage(file, 1400, (dataUrl) => {
       try {
-        const updated = {
-          ...sellerSettings,
-          heroImage: dataUrl,
-        };
-        await updateSellerSettings(updated);
+        updateHeroImage(dataUrl);
         addToast('Hero background picture updated successfully!', 'success');
       } catch (err) {
         console.error('Failed to update hero image:', err);
         addToast('Failed to update picture. Please try again.', 'error');
+      } finally {
+        setIsUploadingHero(false);
+        if (e.target) e.target.value = '';
       }
     });
   };
 
-  const handleRemoveHero = async () => {
-    try {
-      const updated = {
-        ...sellerSettings,
-        heroImage: '',
-      };
-      await updateSellerSettings(updated);
-      addToast('Hero picture reset to default gradient', 'info');
-    } catch (err) {
-      console.error(err);
-    }
+  const handleRemoveHero = () => {
+    removeHeroImage();
+    addToast('Hero picture reset to default gradient', 'info');
   };
 
   const handleColUpload = (e) => {
     const file = e.target.files?.[0];
-    if (!file || !activeUploadCol) return;
-
     const colName = activeUploadCol;
-    shrinkImage(file, 600, async (dataUrl) => {
+    if (!file || !colName) {
+      if (e.target) e.target.value = '';
+      return;
+    }
+
+    setUploadingColName(colName);
+    shrinkImage(file, 600, (dataUrl) => {
       try {
-        const updatedCols = {
-          ...(sellerSettings?.collectionImages || {}),
-          [colName]: dataUrl,
-        };
-        const updated = {
-          ...sellerSettings,
-          collectionImages: updatedCols,
-        };
-        await updateSellerSettings(updated);
+        updateCollectionImage(colName, dataUrl);
         addToast(`Picture for "${colName}" updated!`, 'success');
       } catch (err) {
         console.error(err);
         addToast('Failed to update collection picture.', 'error');
       } finally {
+        setUploadingColName(null);
         setActiveUploadCol(null);
+        if (e.target) e.target.value = '';
       }
     });
   };
 
-  const handleResetCol = async (colName) => {
-    try {
-      const updatedCols = { ...(sellerSettings?.collectionImages || {}) };
-      delete updatedCols[colName];
-      const updated = {
-        ...sellerSettings,
-        collectionImages: updatedCols,
-      };
-      await updateSellerSettings(updated);
-      addToast(`Picture for "${colName}" reset to default`, 'info');
-    } catch (err) {
-      console.error(err);
-    }
+  const handleResetCol = (colName) => {
+    removeCollectionImage(colName);
+    addToast(`Picture for "${colName}" reset to default`, 'info');
   };
 
   return (
     <div className="space-y-4">
-      {/* Hidden file inputs */}
+      {/* Hidden file inputs with always reset on change */}
       <input
         ref={heroInputRef}
         type="file"
@@ -172,10 +162,15 @@ export default function ImageManager() {
           <button
             type="button"
             className="ab"
+            disabled={isUploadingHero}
             onClick={() => heroInputRef.current?.click()}
           >
-            <Upload className="w-4 h-4 mr-1.5" />
-            <span>Upload picture</span>
+            {isUploadingHero ? (
+              <RefreshCw className="w-4 h-4 mr-1.5 animate-spin" />
+            ) : (
+              <Upload className="w-4 h-4 mr-1.5" />
+            )}
+            <span>{isUploadingHero ? 'Processing...' : 'Upload picture'}</span>
           </button>
           {heroImage && (
             <button
@@ -198,7 +193,8 @@ export default function ImageManager() {
         <h4>Collection pictures</h4>
         <div className="divide-y divide-[#edf6f2]">
           {collectionsList.map((col) => {
-            const customPic = collectionImages[col];
+            const customPic = getColImg(col);
+            const isUploadingThis = uploadingColName === col;
 
             return (
               <div key={col} className="prow">
@@ -221,12 +217,16 @@ export default function ImageManager() {
                   <button
                     type="button"
                     className="ab gh2 sm"
+                    disabled={isUploadingThis}
                     onClick={() => {
                       setActiveUploadCol(col);
                       setTimeout(() => colInputRef.current?.click(), 50);
                     }}
                   >
-                    Change
+                    {isUploadingThis ? (
+                      <RefreshCw className="w-3.5 h-3.5 mr-1 animate-spin" />
+                    ) : null}
+                    <span>{isUploadingThis ? 'Saving...' : 'Change'}</span>
                   </button>
                   {customPic && (
                     <button

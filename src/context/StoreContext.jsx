@@ -96,6 +96,64 @@ export function StoreProvider({ children }) {
     }
   });
 
+  // 4b. Storefront Custom Images (Hero background & Collection ring thumbnails)
+  const [storeImages, setStoreImages] = useState(() => {
+    try {
+      const saved = localStorage.getItem('zoriq_images_v1') || localStorage.getItem('zq_img');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error('Failed to parse saved images:', e);
+    }
+    return {
+      hero: '',
+      cols: {}
+    };
+  });
+
+  const updateHeroImage = (dataUrl) => {
+    setStoreImages((prev) => {
+      const next = { ...prev, hero: dataUrl || '' };
+      try {
+        localStorage.setItem('zoriq_images_v1', JSON.stringify(next));
+        localStorage.setItem('zq_img', JSON.stringify(next));
+      } catch (e) {
+        console.error('Failed to save to localStorage:', e);
+      }
+      return next;
+    });
+  };
+
+  const removeHeroImage = () => {
+    updateHeroImage('');
+  };
+
+  const updateCollectionImage = (colName, dataUrl) => {
+    setStoreImages((prev) => {
+      const nextCols = { ...(prev.cols || {}), [colName]: dataUrl };
+      const next = { ...prev, cols: nextCols };
+      try {
+        localStorage.setItem('zoriq_images_v1', JSON.stringify(next));
+        localStorage.setItem('zq_img', JSON.stringify(next));
+      } catch (e) {
+        console.error('Failed to save to localStorage:', e);
+      }
+      return next;
+    });
+  };
+
+  const removeCollectionImage = (colName) => {
+    setStoreImages((prev) => {
+      const nextCols = { ...(prev.cols || {}) };
+      delete nextCols[colName];
+      const next = { ...prev, cols: nextCols };
+      try {
+        localStorage.setItem('zoriq_images_v1', JSON.stringify(next));
+        localStorage.setItem('zq_img', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+  };
+
   // 4. Active Applied Coupon
   const [coupon, setCoupon] = useState(null);
 
@@ -1102,6 +1160,11 @@ export function StoreProvider({ children }) {
         hasSettingsConflict,
         conflictSettings,
         reloadLatestSettings,
+        storeImages,
+        updateHeroImage,
+        removeHeroImage,
+        updateCollectionImage,
+        removeCollectionImage,
         isProductEditorOpen,
         setIsProductEditorOpen,
         productToEdit,

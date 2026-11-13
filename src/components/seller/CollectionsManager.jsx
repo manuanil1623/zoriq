@@ -7,6 +7,7 @@ export default function CollectionsManager() {
     products,
     sellerSettings,
     updateSellerSettings,
+    storeImages,
     addToast
   } = useStore();
 
@@ -88,7 +89,7 @@ export default function CollectionsManager() {
             const productCount = products.filter(
               (p) => (p.category || '').toLowerCase() === col.toLowerCase()
             ).length;
-            const customPic = sellerSettings?.collectionImages?.[col];
+            const customPic = storeImages?.cols?.[col] || sellerSettings?.collectionImages?.[col];
 
             return (
               <div key={col} className="prow">
