@@ -1,63 +1,33 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { useStore } from '../../context/StoreContext';
-import { ShoppingBag, ArrowRight } from 'lucide-react';
+import {
+  ShoppingBag,
+  Eye,
+  Heart,
+  MessageCircle,
+  Gift,
+  ShieldCheck,
+  Grid as GridIcon,
+  HelpCircle,
+  ArrowRight
+} from 'lucide-react';
 
 export default function CustomerStorefront() {
   const {
     products,
     sellerSettings,
-    cartCount,
     addToCart,
-    setIsCartOpen,
     setSelectedProduct,
-    setIsMyOrdersOpen,
-    setIsAdminLoginModalOpen,
+    toggleWishlist,
+    isInWishlist,
+    selectedCategory,
+    setSelectedCategory,
+    sortBy,
+    setSortBy,
+    searchQuery,
+    setSearchQuery,
+    setActiveInfoPage,
   } = useStore();
-
-  // Active Category & Search filters
-  const [activeCat, setActiveCat] = useState('All');
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // Hero refs
-  const heroRef = useRef(null);
-  const plRef = useRef(null);
-  const prRef = useRef(null);
-  const wordRef = useRef(null);
-  const w1Ref = useRef(null);
-  const w2Ref = useRef(null);
-  const daRef = useRef(null);
-  const dbRef = useRef(null);
-  const introRef = useRef(null);
-  const emRef = useRef(null);
-  const mfRef = useRef(null);
-  const mbarRef = useRef(null);
-
-  // Deck state
-  const deckRef = useRef(null);
-  const [topIndex, setTopIndex] = useState(0);
-  const isDraggingRef = useRef(false);
-  const startXRef = useRef(null);
-  const isBusyRef = useRef(false);
-
-  // Store description from settings (no fallback invented)
-  const storeDescription = (sellerSettings?.tagline || sellerSettings?.description || '').trim();
-
-  // Free shipping & delivery estimates from settings
-  const freeShipping = sellerSettings?.freeShippingThreshold || 599;
-  const shippingFee = sellerSettings?.standardShippingFee || 40;
-  const deliveryTime = sellerSettings?.deliveryTimeEstimate || '5–9 days';
-
-  // Real products only — strictly from website catalog, never demo placeholders
-  const deckItems = useMemo(() => {
-    return products.slice(0, 8);
-  }, [products]);
-
-  // Keep topIndex within bounds if products list changes
-  useEffect(() => {
-    if (topIndex >= deckItems.length) {
-      setTopIndex(0);
-    }
-  }, [deckItems.length, topIndex]);
 
   // Derived categories with item counts
   const categoriesList = useMemo(() => {
@@ -67,558 +37,562 @@ export default function CustomerStorefront() {
       counts[cat] = (counts[cat] || 0) + 1;
     });
 
-    const entries = Object.entries(counts).map(([k, v]) => [k, v]);
-    return [['All', products.length], ...entries];
+    const entries = Object.entries(counts).map(([k, v]) => ({ name: k, count: v }));
+    return [{ name: 'All', count: products.length }, ...entries];
   }, [products]);
 
-  // Filtered products for grid
-  const filteredProducts = useMemo(() => {
-    return products.filter((p) => {
+  // Curated collections with representative products
+  const collectionsWithImages = useMemo(() => {
+    const list = [];
+    const seen = new Set();
+
+    products.forEach((p) => {
       const cat = p.category ? p.category.charAt(0).toUpperCase() + p.category.slice(1) : 'General';
-      const matchesCat = activeCat === 'All' || cat === activeCat;
+      if (!seen.has(cat)) {
+        seen.add(cat);
+        list.push({
+          category: cat,
+          image: p.imageUrl || null,
+          sampleProduct: p,
+        });
+      }
+    });
+
+    // Provide default fallback categories if catalog is small
+    if (list.length < 3) {
+      if (!seen.has('Glassware')) list.push({ category: 'Glassware', image: null });
+      if (!seen.has('Kitchen Finds')) list.push({ category: 'Kitchen Finds', image: null });
+      if (!seen.has('Bottles')) list.push({ category: 'Bottles', image: null });
+    }
+
+    return list.slice(0, 6);
+  }, [products]);
+
+  // Filtered & Sorted products for Grid
+  const filteredProducts = useMemo(() => {
+    let result = products.filter((p) => {
+      const cat = p.category ? p.category.toLowerCase() : 'general';
+      const selected = selectedCategory.toLowerCase();
+      const matchesCat = selected === 'all' || cat === selected;
+
       const q = searchQuery.trim().toLowerCase();
-      const matchesQuery = !q ||
+      const matchesQuery =
+        !q ||
         (p.name && p.name.toLowerCase().includes(q)) ||
         (p.category && p.category.toLowerCase().includes(q)) ||
         (p.description && p.description.toLowerCase().includes(q));
+
       return matchesCat && matchesQuery;
     });
-  }, [products, activeCat, searchQuery]);
 
-  // 1. SCROLL PORTAL ANIMATION (Exact formula from demo)
-  useEffect(() => {
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduce) return;
-
-    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-
-    const portal = () => {
-      const hero = heroRef.current;
-      if (!hero) return;
-
-      const vh = window.innerHeight;
-      const total = hero.offsetHeight - vh;
-      if (total <= 0) return;
-
-      const p = clamp(-hero.getBoundingClientRect().top / total, 0, 1);
-
-      if (plRef.current) plRef.current.style.transform = `translateX(${-p * 105}%)`;
-      if (prRef.current) prRef.current.style.transform = `translateX(${p * 105}%)`;
-
-      if (wordRef.current) {
-        wordRef.current.style.transform = `scale(${1 + p * 0.28})`;
-        wordRef.current.style.letterSpacing = `${0.02 - p * 0.09}em`;
-        wordRef.current.style.opacity = 1 - clamp((p - 0.78) / 0.22, 0, 1);
-      }
-
-      // Z monogram reveal
-      if (emRef.current) {
-        const k = clamp((p - 0.74) / 0.22, 0, 1);
-        emRef.current.style.opacity = k;
-        emRef.current.style.transform = `translateY(${Math.round((1 - k) * 28)}px) scale(${(0.85 + 0.15 * k).toFixed(3)})`;
-      }
-
-      if (w1Ref.current) w1Ref.current.style.transform = `translateX(${-p * 55}%)`;
-      if (w2Ref.current) w2Ref.current.style.transform = `translateX(${p * 55}%)`;
-
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-
-      if (daRef.current) daRef.current.style.transform = `translate(${-p * w * 0.42}px, ${-p * h * 0.34}px)`;
-      if (dbRef.current) dbRef.current.style.transform = `translate(${p * w * 0.42}px, ${p * h * 0.34}px)`;
-
-      if (introRef.current) introRef.current.style.opacity = 1 - clamp((p - 0.25) / 0.3, 0, 1);
-
-      // Manifesto progress bar
-      const mf = mfRef.current;
-      if (mf && mbarRef.current) {
-        const mfTotal = mf.offsetHeight - vh;
-        const q = clamp((vh * 0.5 - mf.getBoundingClientRect().top) / (mfTotal + vh * 0.5), 0, 1);
-        mbarRef.current.style.width = `${clamp(q / 0.85, 0, 1) * 100}%`;
-      }
-    };
-
-    window.addEventListener('scroll', portal, { passive: true });
-    window.addEventListener('resize', portal);
-    portal();
-
-    return () => {
-      window.removeEventListener('scroll', portal);
-      window.removeEventListener('resize', portal);
-    };
-  }, []);
-
-  // 2. INTERSECTION OBSERVER FOR .rv REVEALS
-  useEffect(() => {
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const elements = document.querySelectorAll('.rv');
-
-    if (reduce || !('IntersectionObserver' in window)) {
-      elements.forEach((el) => el.classList.add('in'));
-      return;
+    // Sort
+    if (sortBy === 'price-low') {
+      result.sort((a, b) => Number(a.price) - Number(b.price));
+    } else if (sortBy === 'price-high') {
+      result.sort((a, b) => Number(b.price) - Number(a.price));
+    } else if (sortBy === 'name-az') {
+      result.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     }
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('in');
-            observer.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.12 }
-    );
+    return result;
+  }, [products, selectedCategory, searchQuery, sortBy]);
 
-    elements.forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
-  }, [products, activeCat]);
+  // New Arrivals rail (first 6 products)
+  const newArrivals = useMemo(() => {
+    return products.slice(0, 8);
+  }, [products]);
 
-  // 3. CARD DECK TOSS
-  const toss = (dir) => {
-    if (isBusyRef.current || deckItems.length === 0) return;
-    isBusyRef.current = true;
+  // Bestsellers rail (products marked bestseller or top rated)
+  const bestsellers = useMemo(() => {
+    const marked = products.filter((p) => p.isBestseller || p.featured || p.rating >= 4.5);
+    return marked.length >= 3 ? marked : products.slice().reverse().slice(0, 8);
+  }, [products]);
 
-    const deck = deckRef.current;
-    if (!deck) return;
-
-    const cards = deck.querySelectorAll('.card');
-    const currentCard = cards[topIndex];
-    const w = deck.offsetWidth;
-
-    if (currentCard) {
-      currentCard.classList.remove('drag');
-      currentCard.style.transform = `translate(${dir * w * 1.15}px, -24px) rotate(${dir * 20}deg)`;
-      currentCard.style.opacity = '0';
-    }
-
-    setTimeout(() => {
-      setTopIndex((prev) => (prev + 1) % deckItems.length);
-      isBusyRef.current = false;
-    }, 320);
+  const handleCollectionSelect = (cat) => {
+    setSelectedCategory(cat.toLowerCase());
+    document.getElementById('shop')?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Pointer drag for card deck
-  const handlePointerDown = (e) => {
-    if (isBusyRef.current || deckItems.length === 0) return;
-    startXRef.current = e.clientX;
-    isDraggingRef.current = true;
-    e.currentTarget.setPointerCapture(e.pointerId);
-
-    const cards = deckRef.current?.querySelectorAll('.card');
-    if (cards && cards[topIndex]) {
-      cards[topIndex].classList.add('drag');
-    }
-  };
-
-  const handlePointerMove = (e) => {
-    if (!isDraggingRef.current || startXRef.current === null) return;
-    const dx = e.clientX - startXRef.current;
-    const cards = deckRef.current?.querySelectorAll('.card');
-    if (cards && cards[topIndex]) {
-      cards[topIndex].style.transform = `translate(${dx}px, 0) rotate(${dx * 0.06}deg) scale(1.02)`;
-    }
-  };
-
-  const handlePointerUp = (e) => {
-    if (!isDraggingRef.current || startXRef.current === null) return;
-    const dx = e.clientX - startXRef.current;
-    startXRef.current = null;
-    isDraggingRef.current = false;
-
-    const deck = deckRef.current;
-    if (deck && Math.abs(dx) > deck.offsetWidth * 0.1) {
-      toss(dx > 0 ? 1 : -1);
-    } else {
-      const cards = deck?.querySelectorAll('.card');
-      if (cards && cards[topIndex]) {
-        cards[topIndex].classList.remove('drag');
-        // Reset card back to default stack pos
-        cards[topIndex].style.transform = 'translate(0, 0) scale(1) rotate(0deg)';
-      }
-    }
-  };
-
-  // Keyboard left/right for deck
-  const handleKeyDown = (e) => {
-    if (e.key === 'ArrowRight') {
-      e.preventDefault();
-      toss(1);
-    } else if (e.key === 'ArrowLeft') {
-      e.preventDefault();
-      toss(-1);
-    }
-  };
-
-  const handleScrollToShop = () => {
-    const shopEl = document.getElementById('shop');
-    if (shopEl) {
-      shopEl.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
+  const supportWhatsapp = sellerSettings?.supportWhatsapp || '919876543210';
 
   return (
-    <div className="zoriq-storefront-wrapper">
-      
-      {/* 1. HERO OPENING WITH STAGE & PANELS */}
-      <header className="hero" id="hero" ref={heroRef}>
-        <div className="stage">
-          {/* Left and right dark panels */}
-          <div className="panel l" id="pl" ref={plRef} />
-          <div className="panel r" id="pr" ref={prRef} />
-
-          {/* Accent flying dots */}
-          <span className="dot a" id="da" ref={daRef} />
-          <span className="dot b" id="db" ref={dbRef} />
-
-          {/* Corner labels */}
-          <div className="corner t label">
-            <span className="demo-tag">ZORIQ Store</span>
-            <span>Free shipping over ₹{freeShipping}</span>
-          </div>
-
-          {/* Center ZORIQ + Small store text */}
-          <div className="center">
-            {/* Z monogram revealed inside the opening */}
-            <div className="zq-em" id="zq-em" ref={emRef} aria-hidden="true">
-              Z<i>.</i>
-            </div>
-
-            <div className="word" id="word" ref={wordRef}>
-              <span id="w1" ref={w1Ref}>ZOR</span>
-              <span id="w2" ref={w2Ref}>IQ</span>
-            </div>
-
-            <div id="intro" ref={introRef}>
-              {storeDescription && (
-                <p className="desc fade-in">
-                  {storeDescription}
-                </p>
-              )}
-              <div
-                className="cue label fade-in"
-                onClick={handleScrollToShop}
-                role="button"
-                tabIndex={0}
-                aria-label="Scroll to shop"
-              >
-                Scroll to shop
-              </div>
-            </div>
-          </div>
-
-          <div className="corner b label">
-            <span>Delivery in {deliveryTime}</span>
-            <span>Scroll</span>
-          </div>
+    <div className="bg-[#fcfbf8] text-[#1c1a17]">
+      {/* 1. HERO SECTION */}
+      <section className="hero">
+        {/* Floating subtle geometric illustration */}
+        <div className="art" aria-hidden="true">
+          <svg viewBox="0 0 200 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="200" height="250" rx="16" fill="rgba(255,255,255,0.4)" />
+            <circle cx="100" cy="110" r="54" fill="#c9a56b" opacity="0.3" />
+            <rect x="58" y="70" width="84" height="110" rx="12" fill="#fff" opacity="0.6" />
+          </svg>
         </div>
-      </header>
 
-      {/* 2. MANIFESTO WORD REVEAL SECTION */}
-      <section className="zq-mf" id="zq-mf" ref={mfRef} aria-label="About ZORIQ">
-        <div className="zq-mf-s">
-          <span className="zq-mcount label">Welcome</span>
-          <a className="zq-skip label" href="#shop">Skip to shop ↓</a>
-          <p className="zq-mf-p a" id="zq-mf1">
-            Welcome to the <span className="hl">next evolution</span> of daily living. At ZORIQ, we bridge the gap between <span className="hl">uncompromising aesthetic</span> and <span className="hl">everyday utility</span>—curating precision-designed essentials crafted to elevate your space, routine, and lifestyle.
-          </p>
-          <p className="zq-mf-p b" id="zq-mf2">
-            Every product in our inaugural collection is selected with strict attention to quality, functionality, and value. Supported by seamless payments, swift express shipping, and a commitment to customer excellence, setting <span className="hl">a higher standard</span> for your everyday life begins right here.
-          </p>
-          <div className="zq-mbar"><i id="zq-mbar" ref={mbarRef}></i></div>
+        <div className="c">
+          <div className="eyebrow">Everyday store</div>
+          <h1>
+            Useful things for <em>home and kitchen</em>
+          </h1>
+          <div className="btns">
+            <a
+              href="#shop"
+              className="btn dark"
+              onClick={(e) => {
+                e.preventDefault();
+                setSelectedCategory('all');
+                document.getElementById('shop')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+            >
+              Shop all <ArrowRight className="w-4 h-4 ml-1" />
+            </a>
+            <a
+              href="#collections"
+              className="btn line"
+              onClick={(e) => {
+                e.preventDefault();
+                document.getElementById('collections')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+            >
+              Browse by collection
+            </a>
+          </div>
         </div>
       </section>
 
-      {/* 3. MAIN STORE CONTENT */}
-      <main className="store" id="shop">
-        
-        {/* NEW IN THE STORE SECTION: DECK */}
-        <section className="wrap two">
-          <div className="rv">
-            <h2 className="store-h2">New in the store</h2>
-            <p className="lede">
-              {deckItems.length > 0
-                ? 'Swipe or drag a card aside to explore our latest additions, or click any item to view details.'
-                : 'Products added through the Owner Portal will appear directly in this card deck.'}
-            </p>
-            <div className="btns">
-              <a className="btn main" href="#all">
-                Shop all
-              </a>
-              <button className="btn" type="button" onClick={() => setIsCartOpen(true)}>
-                View cart ({cartCount})
-              </button>
+      {/* 2. ROTATING CIRCULAR COLLECTIONS ROW */}
+      <div id="collections" className="wrap">
+        <div className="cols">
+          {collectionsWithImages.map((col, idx) => (
+            <div
+              key={idx}
+              className="col"
+              onClick={() => handleCollectionSelect(col.category)}
+            >
+              <div className="ring">
+                <div>
+                  {col.image ? (
+                    <img src={col.image} alt={col.category} />
+                  ) : (
+                    <div className="w-full h-full bg-[#f4f0e9] flex items-center justify-center text-xs font-semibold uppercase tracking-widest text-[var(--gold)]">
+                      {col.category.slice(0, 3)}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <span>{col.category}</span>
             </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 3. NEW ARRIVALS RAIL */}
+      {newArrivals.length > 0 && (
+        <section id="new-arrivals" className="sec">
+          <div className="wrap">
+            <div className="eyebrow">Fresh finds</div>
+            <h2>
+              <em>New</em> arrivals
+            </h2>
           </div>
 
-          <div className="deck-box rv">
-            {deckItems.length === 0 ? (
-              <div className="deck" id="deck" tabIndex={0}>
-                <div className="card text-center flex flex-col justify-center items-center p-8 bg-[#101317]">
-                  <ShoppingBag className="w-10 h-10 text-[var(--ink2)] mb-3 opacity-50" />
-                  <h3 className="text-base font-semibold text-[var(--ink)]">No Products in Store</h3>
-                  <p className="text-xs text-[var(--ink2)] mt-2 leading-relaxed max-w-[24ch]">
-                    Add your real products in the Owner Portal to display them live in this deck.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <>
-                <div
-                  className="deck"
-                  id="deck"
-                  ref={deckRef}
-                  tabIndex={0}
-                  aria-label="Product deck. Use left and right arrow keys or swipe."
-                  onPointerDown={handlePointerDown}
-                  onPointerMove={handlePointerMove}
-                  onPointerUp={handlePointerUp}
-                  onPointerCancel={handlePointerUp}
-                  onKeyDown={handleKeyDown}
-                >
-                  {deckItems.map((it, i) => {
-                    const n = deckItems.length;
-                    const k = (i - topIndex + n) % n;
-                    const zIndex = n - k;
-                    const opacity = k > 2 ? 0 : 1;
-                    const transform = `translate(${k * 12}px, ${-k * 9}px) scale(${1 - k * 0.045}) rotate(${k * 1.8}deg)`;
+          <div className="rail">
+            {newArrivals.map((product) => {
+              const inWish = isInWishlist(product.id);
+              const hasDiscount = product.originalPrice && product.originalPrice > product.price;
 
-                    return (
-                      <div
-                        key={it.id || `deck-${i}`}
-                        className="card"
-                        style={{
-                          zIndex,
-                          opacity,
-                          transform,
-                        }}
-                        onClick={() => {
-                          if (it.id && setSelectedProduct) setSelectedProduct(it);
-                        }}
-                      >
-                        <div className="w-full flex-1 flex flex-col justify-center items-center overflow-hidden py-2">
-                          {it.image ? (
-                            <img
-                              src={it.image}
-                              alt={it.name}
-                              className="max-h-40 w-auto object-contain rounded-lg drop-shadow-md select-none pointer-events-none"
-                              loading="lazy"
-                            />
-                          ) : (
-                            <div className="glyph select-none">
-                              {it.name ? it.name.charAt(0).toUpperCase() : 'Z'}
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="mt-2">
-                          <h3 className="truncate">{it.name}</h3>
-                          <div className="flex items-center justify-between mt-1">
-                            <span className="price font-semibold">₹{it.price}</span>
-                            <button
-                              type="button"
-                              className="text-[10px] tracking-wider uppercase px-2.5 py-1 rounded-full border border-[var(--line)] hover:border-[var(--amber)] hover:text-[var(--amber)] transition-colors"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                addToCart(it);
-                              }}
-                            >
-                              Add to cart
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="hint">
-                  <span className="label" id="hint">Drag or use ← →</span>
-                  <div className="dots" id="dots">
-                    {deckItems.map((_, i) => (
-                      <b key={i} className={i === topIndex ? 'on' : ''} />
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </section>
-
-        {/* CATEGORIES, SEARCH AND PRODUCT GRID */}
-        <section className="wrap" style={{ paddingTop: 0 }} id="all">
-          <div className="rv">
-            {/* Search + Category Filter Chips */}
-            <div className="zq-tools mb-6">
-              <input
-                type="search"
-                className="zq-search"
-                placeholder="Search essentials, electronics, fashion, home..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                aria-label="Search catalog"
-              />
-              <div className="zq-chips" role="tablist" aria-label="Product categories">
-                {categoriesList.map(([catName, count]) => (
-                  <button
-                    key={catName}
-                    type="button"
-                    className={`zq-chip ${catName === activeCat ? 'on' : ''}`}
-                    onClick={() => setActiveCat(catName)}
-                  >
-                    <span>{catName}</span>
-                    <span>{count}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Products Grid */}
-            {products.length === 0 ? (
-              <div className="my-16 text-center border border-[var(--line)] rounded-2xl p-12 bg-[var(--ground2)]">
-                <ShoppingBag className="w-10 h-10 text-[var(--ink2)] mx-auto mb-3 opacity-60" />
-                <h3 className="text-lg font-bold text-[var(--ink)] mb-1">
-                  Catalog Updating
-                </h3>
-                <p className="text-xs text-[var(--ink2)] max-w-sm mx-auto">
-                  New collections are being added. Check back shortly or log in to the owner portal to publish products!
-                </p>
-              </div>
-            ) : filteredProducts.length === 0 ? (
-              <div className="my-12 text-center border border-[var(--line)] rounded-2xl p-8 bg-[var(--ground2)]">
-                <p className="text-sm text-[var(--ink2)]">
-                  {searchQuery ? `No products match "${searchQuery}".` : `No products found in category "${activeCat}".`}
-                </p>
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery('')}
-                    className="mt-3 text-xs text-emerald-600 font-semibold underline cursor-pointer"
-                  >
-                    Clear search
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="grid" id="grid">
-                {filteredProducts.map((product) => (
+              return (
+                <div key={product.id} className="card">
                   <div
-                    key={product.id}
-                    className="pc cursor-pointer group flex flex-col justify-between"
-                    onClick={() => {
-                      if (setSelectedProduct) setSelectedProduct(product);
-                    }}
+                    className="im"
+                    onClick={() => setSelectedProduct(product)}
                   >
-                    <div className="pc-img-box">
-                      {product.image ? (
-                        <img
-                          src={product.image}
-                          alt={product.name}
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="glyph">
-                          {product.name ? product.name.charAt(0).toUpperCase() : 'Z'}
-                        </div>
-                      )}
-                    </div>
+                    {product.imageUrl ? (
+                      <img src={product.imageUrl} alt={product.name} />
+                    ) : (
+                      <div className="w-full h-full bg-[#f4f0e9] flex items-center justify-center text-xs text-gray-400">
+                        zoriq
+                      </div>
+                    )}
 
-                    <div className="flex flex-col flex-1 justify-between gap-1 mt-2">
-                      <div>
-                        {product.category && (
-                          <span className="text-[10px] sm:text-[11px] uppercase tracking-wider text-[var(--ink2)] block font-semibold">
-                            {product.category}
-                          </span>
-                        )}
-                        <h3 className="line-clamp-2 text-sm sm:text-base font-bold text-[var(--ink)] mt-0.5 leading-snug" title={product.name}>
-                          {product.name}
-                        </h3>
-                      </div>
-                      
-                      <div className="mt-auto pt-2 flex items-baseline justify-between">
-                        <div className="price font-extrabold text-base sm:text-lg text-[var(--amber)]">
-                          ₹{product.price?.toLocaleString('en-IN')}
-                        </div>
-                        {product.originalPrice && product.originalPrice > product.price && (
-                          <span className="text-xs text-[var(--ink2)] line-through">
-                            ₹{product.originalPrice?.toLocaleString('en-IN')}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    
+                    {hasDiscount ? (
+                      <span className="tg">
+                        {Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}% OFF
+                      </span>
+                    ) : (
+                      <span className="tg">New</span>
+                    )}
+
+                    {/* Quick View Button */}
                     <button
                       type="button"
-                      className="w-full mt-3"
+                      className="ac q"
+                      title="Quick View"
                       onClick={(e) => {
                         e.stopPropagation();
-                        addToCart(product);
+                        setSelectedProduct(product);
                       }}
-                      aria-label={`Add ${product.name} to cart`}
                     >
-                      Add to cart
+                      <Eye className="i" />
+                    </button>
+
+                    {/* Instant Add to Bag Button */}
+                    <button
+                      type="button"
+                      className="ac b"
+                      title="Add to Bag"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        addToCart(product, 1);
+                      }}
+                    >
+                      <ShoppingBag className="i" />
                     </button>
                   </div>
-                ))}
+
+                  <h3 onClick={() => setSelectedProduct(product)}>
+                    <a>{product.name}</a>
+                  </h3>
+
+                  <div className="pr">
+                    <b>₹{Number(product.price).toLocaleString('en-IN')}</b>
+                    {hasDiscount && (
+                      <s>₹{Number(product.originalPrice).toLocaleString('en-IN')}</s>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* 4. BESTSELLERS RAIL */}
+      {bestsellers.length > 0 && (
+        <section id="bestsellers" className="sec" style={{ paddingTop: '10px' }}>
+          <div className="wrap">
+            <div className="eyebrow">Customer favorites</div>
+            <h2>
+              <em>Bestsellers</em>
+            </h2>
+          </div>
+
+          <div className="rail">
+            {bestsellers.map((product) => {
+              const hasDiscount = product.originalPrice && product.originalPrice > product.price;
+
+              return (
+                <div key={`bs-${product.id}`} className="card">
+                  <div
+                    className="im"
+                    onClick={() => setSelectedProduct(product)}
+                  >
+                    {product.imageUrl ? (
+                      <img src={product.imageUrl} alt={product.name} />
+                    ) : (
+                      <div className="w-full h-full bg-[#f4f0e9] flex items-center justify-center text-xs text-gray-400">
+                        zoriq
+                      </div>
+                    )}
+
+                    <span className="tg">Bestseller</span>
+
+                    <button
+                      type="button"
+                      className="ac q"
+                      title="Quick View"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedProduct(product);
+                      }}
+                    >
+                      <Eye className="i" />
+                    </button>
+
+                    <button
+                      type="button"
+                      className="ac b"
+                      title="Add to Bag"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        addToCart(product, 1);
+                      }}
+                    >
+                      <ShoppingBag className="i" />
+                    </button>
+                  </div>
+
+                  <h3 onClick={() => setSelectedProduct(product)}>
+                    <a>{product.name}</a>
+                  </h3>
+
+                  <div className="pr">
+                    <b>₹{Number(product.price).toLocaleString('en-IN')}</b>
+                    {hasDiscount && (
+                      <s>₹{Number(product.originalPrice).toLocaleString('en-IN')}</s>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* 5. SHOP ALL GRID */}
+      <section id="shop" className="sec" style={{ paddingTop: '20px' }}>
+        <div className="wrap">
+          <div className="ph">
+            <div className="eyebrow">Catalog</div>
+            <h1>
+              Shop <em>all products</em>
+            </h1>
+            <p>Thoughtfully made glassware, storage canisters, and everyday kitchen essentials.</p>
+          </div>
+
+          {/* Category Filter Chips */}
+          <div className="chips">
+            {categoriesList.map((cat) => (
+              <button
+                key={cat.name}
+                type="button"
+                className={`chip ${selectedCategory.toLowerCase() === cat.name.toLowerCase() ? 'on' : ''}`}
+                onClick={() => setSelectedCategory(cat.name.toLowerCase())}
+              >
+                {cat.name} ({cat.count})
+              </button>
+            ))}
+          </div>
+
+          {/* Bar with count & sorting */}
+          <div className="bar">
+            <span>Showing {filteredProducts.length} items</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              aria-label="Sort products"
+            >
+              <option value="featured">Featured</option>
+              <option value="price-low">Price: Low to High</option>
+              <option value="price-high">Price: High to Low</option>
+              <option value="name-az">Name: A to Z</option>
+            </select>
+          </div>
+
+          {/* Product Grid */}
+          {filteredProducts.length === 0 ? (
+            <div className="py-20 text-center text-[var(--ink2)]">
+              <p className="text-lg">No products found in this category.</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCategory('all');
+                  setSearchQuery('');
+                }}
+                className="btn dark mt-4"
+              >
+                Clear Filters
+              </button>
+            </div>
+          ) : (
+            <div className="grid">
+              {filteredProducts.map((product) => {
+                const inWish = isInWishlist(product.id);
+                const hasDiscount = product.originalPrice && product.originalPrice > product.price;
+
+                return (
+                  <div key={product.id} className="card">
+                    <div
+                      className="im"
+                      onClick={() => setSelectedProduct(product)}
+                    >
+                      {product.imageUrl ? (
+                        <img src={product.imageUrl} alt={product.name} />
+                      ) : (
+                        <div className="w-full h-full bg-[#f4f0e9] flex items-center justify-center text-xs text-gray-400">
+                          zoriq
+                        </div>
+                      )}
+
+                      {hasDiscount ? (
+                        <span className="tg">
+                          {Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}% OFF
+                        </span>
+                      ) : (
+                        <span className="tg">{product.category || 'Kitchen'}</span>
+                      )}
+
+                      {/* Wishlist Heart Top Right */}
+                      <button
+                        type="button"
+                        className={`ac q ${inWish ? 'text-rose-500' : ''}`}
+                        title={inWish ? 'Remove from wishlist' : 'Save to wishlist'}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleWishlist(product);
+                        }}
+                      >
+                        <Heart className={`i ${inWish ? 'fill-rose-500 text-rose-500' : ''}`} />
+                      </button>
+
+                      {/* Add to Bag Bottom Right */}
+                      <button
+                        type="button"
+                        className="ac b"
+                        title="Add to Bag"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          addToCart(product, 1);
+                        }}
+                      >
+                        <ShoppingBag className="i" />
+                      </button>
+                    </div>
+
+                    <h3 onClick={() => setSelectedProduct(product)}>
+                      <a>{product.name}</a>
+                    </h3>
+
+                    <div className="pr">
+                      <b>₹{Number(product.price).toLocaleString('en-IN')}</b>
+                      {hasDiscount && (
+                        <s>₹{Number(product.originalPrice).toLocaleString('en-IN')}</s>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* 6. FEATURES SECTION */}
+      <section className="feat">
+        <div className="wrap">
+          <div className="g">
+            <div className="it">
+              <Gift className="i" />
+              <b>Useful little finds</b>
+              <span>Daily goods chosen for ease, durability, and daily joy.</span>
+            </div>
+            <div className="it">
+              <ShieldCheck className="i" />
+              <b>Secure checkout</b>
+              <span>Fast shipping across India with reliable delivery & COD available.</span>
+            </div>
+            <div className="it">
+              <HelpCircle className="i" />
+              <b>Questions welcome</b>
+              <span>Tap chat anytime for care instructions and product advice.</span>
+            </div>
+            <div className="it">
+              <GridIcon className="i" />
+              <b>Curated collections</b>
+              <span>Everyday home and kitchen objects crafted for mindful living.</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 7. FOOTER */}
+      <footer className="ft">
+        <div className="wrap">
+          <div className="grid4">
+            <div>
+              <a
+                href="#/"
+                className="logo"
+                onClick={(e) => {
+                  e.preventDefault();
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+              >
+                zoriq
+              </a>
+              <p className="tag">
+                {sellerSettings?.tagline || 'Useful things for home and kitchen.'}
+              </p>
+            </div>
+
+            <div className="cl" style={{ gridColumn: 'span 2' }}>
+              <div>
+                <h4>Shop</h4>
+                <a
+                  href="#shop"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setSelectedCategory('all');
+                    document.getElementById('shop')?.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                >
+                  Shop all
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setActiveInfoPage('journal')}
+                >
+                  Journal & Care
+                </button>
               </div>
-            )}
 
+              <div>
+                <h4>Information</h4>
+                <button
+                  type="button"
+                  onClick={() => setActiveInfoPage('about')}
+                >
+                  About us
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveInfoPage('contact')}
+                >
+                  Contact
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveInfoPage('shipping')}
+                >
+                  Shipping & Delivery
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveInfoPage('returns')}
+                >
+                  Returns
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveInfoPage('privacy')}
+                >
+                  Privacy
+                </button>
+              </div>
+            </div>
           </div>
-        </section>
-
-        {/* DELIVERY AND PAYMENT INFO TABLE */}
-        <section className="wrap" style={{ paddingTop: 0 }} id="info">
-          <div className="rv">
-            <h2 className="store-h2">Delivery and payment</h2>
-            <table className="tbl">
-              <thead>
-                <tr className="label">
-                  <th>Topic</th>
-                  <th>Detail</th>
-                  <th>Note</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>Shipping</td>
-                  <td>₹{shippingFee} standard</td>
-                  <td>Free over ₹{freeShipping}</td>
-                </tr>
-                <tr>
-                  <td>Delivery</td>
-                  <td>{deliveryTime}</td>
-                  <td>Across India</td>
-                </tr>
-                <tr>
-                  <td>Payments</td>
-                  <td>Razorpay, COD</td>
-                  <td>UPI, cards, netbanking</td>
-                </tr>
-              </tbody>
-            </table>
-            <p className="label" style={{ marginTop: '18px' }}>
-              All rules are synced live from your store settings.
-            </p>
-          </div>
-        </section>
-
-        {/* FOOTER & LARGE CROPPED TYPOGRAPHY */}
-        <div className="foot label">
-          <span
-            onClick={() => setIsAdminLoginModalOpen(true)}
-            className="cursor-pointer hover:text-[var(--ink)] transition-colors select-none"
-            title="ZORIQ"
-          >
-            © {sellerSettings?.storeName || 'ZORIQ'}
-          </span>
-          <span>{sellerSettings?.tagline || 'Direct-to-Consumer Flagship Store'}</span>
-        </div>
-        <div className="crop" aria-hidden="true">
-          <div>{sellerSettings?.storeName || 'ZORIQ'}</div>
         </div>
 
-      </main>
+        {/* Large subtle watermark */}
+        <div className="wm" aria-hidden="true">
+          zoriq
+        </div>
 
+        <div className="wrap cp">
+          © zoriq · All rights reserved.
+        </div>
+      </footer>
+
+      {/* 8. FLOATING WHATSAPP / CHAT BUTTON */}
+      <a
+        href={`https://wa.me/${supportWhatsapp}?text=Hi%20zoriq%2C%20I%20have%20a%20question%20about%20your%20products.`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="chat"
+        title="Chat with us on WhatsApp"
+        aria-label="Chat with us"
+      >
+        <MessageCircle className="i" />
+      </a>
     </div>
   );
 }

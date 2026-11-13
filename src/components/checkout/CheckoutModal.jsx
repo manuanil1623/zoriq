@@ -286,21 +286,21 @@ export default function CheckoutModal() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="bg-[#fcfbf8] w-full max-w-xl shadow-2xl border border-[var(--line)] overflow-hidden flex flex-col max-h-[92vh] text-[#1c1a17]">
         
         {/* Top Header */}
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-slate-900 to-indigo-950 text-white">
+        <div className="px-5 py-4 border-b border-[var(--line)] flex items-center justify-between bg-[#f4f0e9] text-[var(--ink)]">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-amber-300">
-              <ShieldCheck className="w-5 h-5" />
+            <div className="w-8 h-8 bg-[var(--ink)] flex items-center justify-center text-white">
+              <ShieldCheck className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="font-bold text-sm sm:text-base leading-tight">
+              <h2 className="font-tenor text-base sm:text-lg leading-tight text-[var(--ink)]">
                 {step === 1 && 'Secure Checkout — Shipping Details'}
                 {step === 2 && 'Complete Payment (Razorpay & COD)'}
                 {step === 3 && 'Order Placed Successfully!'}
               </h2>
-              <p className="text-[11px] text-gray-300">
+              <p className="text-[11px] text-[var(--muted)]">
                 {step === 1 && 'Step 1 of 2: Enter your delivery address'}
                 {step === 2 && 'Step 2 of 2: Instant bank verification'}
                 {step === 3 && 'Tax Invoice generated & receipt emailed'}
@@ -310,9 +310,9 @@ export default function CheckoutModal() {
 
           <button
             onClick={() => setIsCheckoutOpen(false)}
-            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-gray-200 flex items-center justify-center transition-colors"
+            className="close"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
 

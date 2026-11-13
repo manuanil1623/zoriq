@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import {
   LayoutDashboard,
@@ -7,10 +7,7 @@ import {
   Settings,
   PlusCircle,
   LogOut,
-  ShieldCheck,
-  ArrowRight,
-  Package,
-  User
+  ArrowRight
 } from 'lucide-react';
 
 export default function Navbar() {
@@ -24,25 +21,31 @@ export default function Navbar() {
     setIsCartOpen,
     orders,
     customerOrders,
-    setIsMyOrdersOpen,
-    sellerActiveTab,
-    setSellerActiveTab,
-    setIsProductEditorOpen,
-    setProductToEdit,
     isCustomerLoggedIn,
     customerUser,
     setIsAuthModalOpen,
     setAuthModalMode,
     logoutCustomer,
+    setIsMyOrdersOpen,
+    wishlist,
+    isWishlistOpen,
+    setIsWishlistOpen,
+    isSearchOpen,
+    setIsSearchOpen,
+    setActiveInfoPage,
+    setSelectedCategory,
+    sellerActiveTab,
+    setSellerActiveTab,
+    setIsProductEditorOpen,
+    setProductToEdit,
+    products,
   } = useStore();
 
-  const handleOpenAddProduct = () => {
-    setProductToEdit(null);
-    setIsProductEditorOpen(true);
-  };
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
 
   // Secret Owner Access: ?admin, #admin, or Ctrl+Shift+A
-  React.useEffect(() => {
+  useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const checkUrlSecret = () => {
@@ -65,213 +68,334 @@ export default function Navbar() {
 
     window.addEventListener('keydown', handleKeyDown);
 
+    const onScroll = () => {
+      setIsScrolled(window.scrollY > 10);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+
     return () => {
       window.removeEventListener('hashchange', checkUrlSecret);
       window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('scroll', onScroll);
     };
   }, [setIsAdminLoginModalOpen]);
 
-  // 1. CUSTOMER MODE: Public Navigation Bar (Owner tab is hidden from customers)
+  // Categories list for menu
+  const uniqueCategories = React.useMemo(() => {
+    const set = new Set();
+    products.forEach((p) => {
+      if (p.category) {
+        set.add(p.category.charAt(0).toUpperCase() + p.category.slice(1));
+      }
+    });
+    return Array.from(set);
+  }, [products]);
+
+  const handleCategoryClick = (cat) => {
+    setSelectedCategory(cat.toLowerCase());
+    setIsMenuOpen(false);
+    const shopEl = document.getElementById('shop');
+    if (shopEl) {
+      shopEl.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  const handleAccountClick = () => {
+    if (isCustomerLoggedIn) {
+      setIsMyOrdersOpen(true);
+    } else {
+      setAuthModalMode('login');
+      setIsAuthModalOpen(true);
+    }
+  };
+
+  // 1. CUSTOMER MODE: Public Minimalist Header & Drawer
   if (role === 'customer') {
     return (
-      <nav className="zoriq-nav">
-        <span
-          className="brand cursor-pointer select-none"
-          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          title="ZORIQ"
-        >
-          ZORIQ
-          {/* Secret Discrete Trigger: Clicking the amber dot opens Owner PIN Login */}
-          <i
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsAdminLoginModalOpen(true);
-            }}
-            title="ZORIQ"
-            className="cursor-pointer hover:opacity-80 transition-opacity"
-          >
-            .
-          </i>
-        </span>
+      <>
+        <header className={`hd ${isScrolled ? 'sc' : ''}`} id="hd">
+          <div className="in">
+            {/* Hamburger Button */}
+            <button
+              className={`ib burger ${isMenuOpen ? 'x' : ''}`}
+              id="burger"
+              aria-label="Menu"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+            >
+              <i></i>
+              <i></i>
+              <i></i>
+            </button>
 
-        <div className="nav-r">
-          <a href="#shop" className="hide-s">Shop</a>
-          <a href="#info" className="hide-s">Delivery</a>
-          
-          {/* Customer Authentication & Live Tracking */}
-          {isCustomerLoggedIn ? (
-            <div className="flex items-center gap-1.5">
+            {/* Brand Logo in Tenor Sans */}
+            <a
+              href="#/"
+              className="logo select-none"
+              onClick={(e) => {
+                e.preventDefault();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              aria-label="zoriq home"
+            >
+              zoriq
+              {/* Discrete secret admin trigger dot */}
+              <i
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsAdminLoginModalOpen(true);
+                }}
+                title="zoriq"
+                style={{ fontStyle: 'normal', cursor: 'pointer', color: 'var(--gold)' }}
+              >
+                .
+              </i>
+            </a>
+
+            {/* Desktop Navigation */}
+            <nav className="dnav">
+              <a
+                href="#shop"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setSelectedCategory('all');
+                  document.getElementById('shop')?.scrollIntoView({ behavior: 'smooth' });
+                }}
+              >
+                Shop
+              </a>
+              <a
+                href="#shop"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleCategoryClick('Glassware');
+                }}
+              >
+                Glassware
+              </a>
+              <a
+                href="#shop"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleCategoryClick('Bestsellers');
+                }}
+              >
+                Bestsellers
+              </a>
               <button
                 type="button"
-                onClick={() => setIsMyOrdersOpen(true)}
-                className="pill flex items-center gap-1.5 text-xs font-semibold"
-                title="View My Orders & Account"
+                onClick={() => setActiveInfoPage('story')}
               >
-                <User className="w-3.5 h-3.5 text-amber-400" />
-                <span className="truncate max-w-[85px] sm:max-w-[120px]">{customerUser?.name?.split(' ')[0] || 'Account'}</span>
+                Our story
               </button>
-              <button
-                type="button"
-                onClick={logoutCustomer}
-                className="p-1.5 text-gray-400 hover:text-rose-400 transition-colors cursor-pointer"
-                title="Sign Out"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ) : (
+              {isAdminLoggedIn && (
+                <button
+                  type="button"
+                  onClick={() => setRole('seller')}
+                  style={{ color: 'var(--gold)', fontWeight: 600 }}
+                  title="Return to Seller Portal"
+                >
+                  Admin Portal
+                </button>
+              )}
+            </nav>
+
+            <span className="sp"></span>
+
+            {/* Account Icon */}
+            <button
+              className="ib"
+              id="bAcc"
+              aria-label="Account"
+              title={isCustomerLoggedIn ? `${customerUser?.name || 'Account'}` : 'Sign In'}
+              onClick={handleAccountClick}
+            >
+              <svg className="i" viewBox="0 0 24 24">
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" />
+              </svg>
+            </button>
+
+            {/* Search Icon */}
+            <button
+              className="ib"
+              id="bSearch"
+              aria-label="Search"
+              title="Search products"
+              onClick={() => setIsSearchOpen(true)}
+            >
+              <svg className="i" viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="6.5" />
+                <path d="m16 16 4.5 4.5" />
+              </svg>
+            </button>
+
+            {/* Wishlist Icon */}
+            <button
+              className="ib"
+              id="bWish"
+              aria-label="Wishlist"
+              title="Wishlist"
+              onClick={() => setIsWishlistOpen(true)}
+            >
+              <svg className="i" viewBox="0 0 24 24">
+                <path d="M12 20.5S3.5 15 3.5 9a4.5 4.5 0 0 1 8.5-2 4.5 4.5 0 0 1 8.5 2c0 6-8.5 11.5-8.5 11.5z" />
+              </svg>
+              {wishlist && wishlist.length > 0 && (
+                <span className="bd">{wishlist.length}</span>
+              )}
+            </button>
+
+            {/* Cart Icon */}
+            <button
+              className="ib"
+              id="bCart"
+              aria-label="Cart"
+              title="View Cart"
+              onClick={() => setIsCartOpen(true)}
+            >
+              <svg className="i" viewBox="0 0 24 24">
+                <path d="M5 8h14l1 12.5H4z" />
+                <path d="M9 8V6.5a3 3 0 0 1 6 0V8" />
+              </svg>
+              {cartCount > 0 && <span className="bd">{cartCount}</span>}
+            </button>
+          </div>
+        </header>
+
+        {/* Mobile Scrim */}
+        <div
+          className={`scrim ${isMenuOpen ? 'on' : ''}`}
+          id="scrim"
+          onClick={() => setIsMenuOpen(false)}
+        ></div>
+
+        {/* Mobile Slide-out Drawer */}
+        <aside id="menu" className={isMenuOpen ? 'on' : ''} aria-label="Menu">
+          <span className="cap">Shop by category</span>
+          <div className="cats" id="mCats">
             <button
               type="button"
               onClick={() => {
-                setAuthModalMode('login');
-                setIsAuthModalOpen(true);
+                setSelectedCategory('all');
+                setIsMenuOpen(false);
+                document.getElementById('shop')?.scrollIntoView({ behavior: 'smooth' });
               }}
-              className="pill flex items-center gap-1 text-xs"
-              title="Customer Login / Register"
             >
-              <User className="w-3.5 h-3.5 text-gray-400" />
-              <span>Sign In</span>
+              All products
             </button>
-          )}
+            {uniqueCategories.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => handleCategoryClick(cat)}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
 
-          {isCustomerLoggedIn && customerOrders && customerOrders.length > 0 && (
+          <div className="big">
             <button
               type="button"
-              onClick={() => setIsMyOrdersOpen(true)}
-              className="pill-track"
-              title="Track My Orders"
+              onClick={() => {
+                setSelectedCategory('all');
+                setIsMenuOpen(false);
+                document.getElementById('new-arrivals')?.scrollIntoView({ behavior: 'smooth' });
+              }}
             >
-              <Package className="w-3.5 h-3.5 text-amber-400" />
-              <span>Track ({customerOrders.length})</span>
+              New arrivals <span>→</span>
             </button>
-          )}
-
-          {/* Only visible when the Owner has already successfully authenticated */}
-          {isAdminLoggedIn && (
-            <a
-              onClick={() => setRole('seller')}
-              style={{ color: 'var(--amber)', fontWeight: 600 }}
-              title="Open Merchant Portal"
-              className="cursor-pointer"
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedCategory('all');
+                setIsMenuOpen(false);
+                document.getElementById('bestsellers')?.scrollIntoView({ behavior: 'smooth' });
+              }}
             >
-              Admin
-            </a>
-          )}
-
-          <button
-            className="pill"
-            id="cartBtn"
-            type="button"
-            onClick={() => setIsCartOpen(true)}
-          >
-            Cart (<span id="cartN">{cartCount}</span>)
-          </button>
-        </div>
-      </nav>
+              Bestsellers <span>→</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsMenuOpen(false);
+                setActiveInfoPage('story');
+              }}
+            >
+              Our story <span>→</span>
+            </button>
+            {isCustomerLoggedIn ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  setIsMyOrdersOpen(true);
+                }}
+              >
+                My Orders & Account <span>→</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  setAuthModalMode('login');
+                  setIsAuthModalOpen(true);
+                }}
+              >
+                Customer Sign In <span>→</span>
+              </button>
+            )}
+          </div>
+        </aside>
+      </>
     );
   }
 
-  // 2. SELLER MODE: Merchant Management Bar
+  // 2. SELLER MODE: Admin Portal Top Bar
   return (
-    <header className="sticky top-0 z-50 bg-[#101317] border-b border-[var(--line)] text-[var(--ink)]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 gap-4">
-          
-          {/* Brand & Mode Indicator */}
-          <div className="flex items-center gap-3">
-            <span
-              onClick={() => setRole('customer')}
-              className="brand cursor-pointer text-lg"
-              title="Preview Store"
-            >
-              ZORIQ<i>.</i>
-            </span>
-            <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/10 text-[var(--amber)] border border-amber-500/30">
-              <ShieldCheck className="w-3 h-3" />
-              Owner Portal
-            </span>
-          </div>
+    <div className="atop">
+      <div className="alogo">z</div>
+      <span>
+        zoriq merchant
+        <b className="live">● LIVE SYNC</b>
+      </span>
 
-          {/* Admin Tabs */}
-          <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/5">
-            <button
-              onClick={() => setSellerActiveTab('dashboard')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                sellerActiveTab === 'dashboard'
-                  ? 'bg-white/10 text-white font-semibold'
-                  : 'text-[var(--ink2)] hover:text-white'
-              }`}
-            >
-              <LayoutDashboard className="w-3.5 h-3.5" />
-              Dashboard
-            </button>
-            <button
-              onClick={() => setSellerActiveTab('products')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                sellerActiveTab === 'products'
-                  ? 'bg-white/10 text-white font-semibold'
-                  : 'text-[var(--ink2)] hover:text-white'
-              }`}
-            >
-              <Boxes className="w-3.5 h-3.5" />
-              Products
-            </button>
-            <button
-              onClick={() => setSellerActiveTab('orders')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all relative ${
-                sellerActiveTab === 'orders'
-                  ? 'bg-white/10 text-white font-semibold'
-                  : 'text-[var(--ink2)] hover:text-white'
-              }`}
-            >
-              <ClipboardList className="w-3.5 h-3.5" />
-              Orders
-              {orders.length > 0 && (
-                <span className="w-4 h-4 bg-amber-500 text-black font-bold rounded-full text-[10px] flex items-center justify-center">
-                  {orders.length}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setSellerActiveTab('settings')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                sellerActiveTab === 'settings'
-                  ? 'bg-white/10 text-white font-semibold'
-                  : 'text-[var(--ink2)] hover:text-white'
-              }`}
-            >
-              <Settings className="w-3.5 h-3.5" />
-              Settings
-            </button>
-          </div>
+      <div className="asp"></div>
 
-          {/* Quick Actions */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleOpenAddProduct}
-              className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-bold px-3 py-1.5 rounded-xl text-xs transition-all active:scale-95 shadow-sm"
-            >
-              <PlusCircle className="w-3.5 h-3.5" />
-              <span>Add Product</span>
-            </button>
-            <button
-              onClick={() => setRole('customer')}
-              className="flex items-center gap-1 text-xs text-[var(--ink2)] hover:text-white px-2.5 py-1.5 border border-white/10 rounded-xl transition-all"
-            >
-              <span>Preview</span>
-              <ArrowRight className="w-3 h-3" />
-            </button>
-            <button
-              onClick={logoutAdmin}
-              className="p-1.5 text-rose-400 hover:text-rose-300 transition-colors"
-              title="Logout"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            setProductToEdit(null);
+            setIsProductEditorOpen(true);
+          }}
+          className="ab sm flex items-center gap-1.5"
+          title="Add New Product"
+        >
+          <PlusCircle className="w-4 h-4" />
+          <span className="hidden sm:inline">Add Product</span>
+        </button>
 
-        </div>
+        <button
+          type="button"
+          onClick={() => setRole('customer')}
+          className="ag flex items-center gap-1"
+          title="Switch to Storefront"
+        >
+          <span>Storefront</span>
+          <ArrowRight className="w-3.5 h-3.5" />
+        </button>
+
+        <button
+          type="button"
+          onClick={logoutAdmin}
+          className="p-2 text-rose-600 hover:text-rose-700 transition-colors"
+          title="Sign out of Admin"
+        >
+          <LogOut className="w-4 h-4" />
+        </button>
       </div>
-    </header>
+    </div>
   );
 }

@@ -99,12 +99,49 @@ export function StoreProvider({ children }) {
   // 4. Active Applied Coupon
   const [coupon, setCoupon] = useState(null);
 
-  // 5. Modals and Navigation states
+  // Modals and Navigation states
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isMyOrdersOpen, setIsMyOrdersOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [isWishlistOpen, setIsWishlistOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [activeInfoPage, setActiveInfoPage] = useState(null);
+
+  // Wishlist State (persisted)
+  const [wishlist, setWishlist] = useState(() => {
+    try {
+      const saved = localStorage.getItem('zoriq_wishlist_v1');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('zoriq_wishlist_v1', JSON.stringify(wishlist));
+    } catch {}
+  }, [wishlist]);
+
+  const toggleWishlist = useCallback((product) => {
+    if (!product) return;
+    setWishlist((prev) => {
+      const exists = prev.some((p) => p.id === product.id);
+      if (exists) {
+        addToast(`Removed "${product.name}" from wishlist`, 'info');
+        return prev.filter((p) => p.id !== product.id);
+      } else {
+        addToast(`Saved "${product.name}" to wishlist`, 'success');
+        return [...prev, product];
+      }
+    });
+  }, [addToast]);
+
+  const isInWishlist = useCallback((productId) => {
+    return wishlist.some((p) => p.id === productId);
+  }, [wishlist]);
 
   // Seller Portal modals and tabs
   const [isProductEditorOpen, setIsProductEditorOpen] = useState(false);
@@ -1015,7 +1052,7 @@ export function StoreProvider({ children }) {
         selectedProduct,
         setSelectedProduct,
 
-        // Cart
+        // Cart & Wishlist
         cart,
         cartCount,
         cartSubtotal,
@@ -1031,6 +1068,15 @@ export function StoreProvider({ children }) {
         removeCoupon,
         isCartOpen,
         setIsCartOpen,
+        wishlist,
+        toggleWishlist,
+        isInWishlist,
+        isWishlistOpen,
+        setIsWishlistOpen,
+        isSearchOpen,
+        setIsSearchOpen,
+        activeInfoPage,
+        setActiveInfoPage,
 
         // Checkout & Orders
         isCheckoutOpen,
