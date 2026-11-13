@@ -26,8 +26,16 @@ export default function SellerPortal() {
     <div className="adm">
       <div className="max-w-4xl mx-auto px-4 py-4 sm:py-6">
         
-        {/* Tab Pills matching exact screenshot */}
+        {/* Tab Pills with Products upfront */}
         <div className="atabs mb-4">
+          <button
+            type="button"
+            onClick={() => setSellerActiveTab('products')}
+            className={sellerActiveTab === 'products' ? 'on' : ''}
+          >
+            Products
+          </button>
+
           <button
             type="button"
             onClick={() => setSellerActiveTab('collections')}
@@ -59,14 +67,6 @@ export default function SellerPortal() {
             className={sellerActiveTab === 'settings' ? 'on' : ''}
           >
             Settings
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setSellerActiveTab('products')}
-            className={sellerActiveTab === 'products' ? 'on' : ''}
-          >
-            Products
           </button>
 
           <button

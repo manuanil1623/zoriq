@@ -1,406 +1,442 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useStore } from '../../context/StoreContext';
 import {
   Plus,
   Edit2,
   Trash2,
   Search,
-  AlertTriangle,
-  CheckCircle,
-  Eye,
-  Filter,
-  ShoppingBag,
-  Banknote,
-  Boxes,
-  Sparkles
+  Upload,
+  Image as ImageIcon,
+  Check,
+  X
 } from 'lucide-react';
 
 export default function ProductList() {
   const {
     products,
+    collections,
+    addProduct,
+    updateProduct,
     deleteProduct,
-    toggleProductStock,
-    toggleProductCod,
-    setIsProductEditorOpen,
-    setProductToEdit,
-    setSelectedProduct,
-    setRole
+    addToast
   } = useStore();
 
   const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [editingId, setEditingId] = useState(null); // 'new' | product id | null
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const fileInputRef = useRef(null);
 
-  const filteredProducts = products.filter((prod) => {
-    const matchesSearch =
-      prod.name.toLowerCase().includes(search.toLowerCase()) ||
-      (prod.sku && prod.sku.toLowerCase().includes(search.toLowerCase()));
-    const matchesCat = categoryFilter === 'all' || prod.category === categoryFilter;
-    return matchesSearch && matchesCat;
+  // Form state for Add / Edit
+  const [formData, setFormData] = useState({
+    name: '',
+    category: '',
+    price: '',
+    originalPrice: '',
+    stock: 20,
+    description: '',
+    image: '',
+    isNew: false,
+    isBestseller: false,
+    codAvailable: true,
   });
 
-  const handleEdit = (prod) => {
-    setProductToEdit(prod);
-    setIsProductEditorOpen(true);
+  const availableCollections = collections && collections.length > 0
+    ? collections
+    : ['Glassware', 'Kitchen Finds', 'Bottles & Lunch Boxes', 'Steel Essentials', 'Lunch Boxes'];
+
+  const startAddNew = () => {
+    setEditingId('new');
+    setFormData({
+      name: '',
+      category: availableCollections[0] || 'General',
+      price: '',
+      originalPrice: '',
+      stock: 20,
+      description: '',
+      image: '',
+      isNew: true,
+      isBestseller: false,
+      codAvailable: true,
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleAddNew = () => {
-    setProductToEdit(null);
-    setIsProductEditorOpen(true);
+  const startEdit = (prod) => {
+    setEditingId(prod.id);
+    const tags = Array.isArray(prod.tags) ? prod.tags : [];
+    setFormData({
+      name: prod.name || '',
+      category: prod.category || availableCollections[0] || 'General',
+      price: prod.price || '',
+      originalPrice: prod.originalPrice || prod.mrp || '',
+      stock: prod.stock !== undefined ? prod.stock : 20,
+      description: prod.description || '',
+      image: prod.image || prod.imageUrl || '',
+      isNew: tags.includes('New') || Boolean(prod.isNew),
+      isBestseller: tags.includes('Bestseller') || Boolean(prod.isBestseller),
+      codAvailable: prod.codAvailable !== undefined ? prod.codAvailable : true,
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleDelete = (prod) => {
-    if (window.confirm(`Are you sure you want to delete "${prod.name}" from your store?`)) {
-      deleteProduct(prod.id);
+  const cancelEdit = () => {
+    setEditingId(null);
+  };
+
+  const handleImageFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxDim = 800;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        const compressed = canvas.toDataURL('image/jpeg', 0.85);
+        setFormData((prev) => ({ ...prev, image: compressed }));
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+    if (e.target) e.target.value = '';
+  };
+
+  const handleSaveProduct = async (e) => {
+    e.preventDefault();
+    const cleanName = formData.name.trim();
+    const numPrice = Number(formData.price);
+
+    if (!cleanName) {
+      addToast('Product name is required', 'warning');
+      return;
+    }
+    if (isNaN(numPrice) || numPrice <= 0) {
+      addToast('Please enter a valid price', 'warning');
+      return;
+    }
+
+    const tags = [];
+    if (formData.isNew) tags.push('New');
+    if (formData.isBestseller) tags.push('Bestseller');
+
+    const productPayload = {
+      name: cleanName,
+      category: formData.category || availableCollections[0] || 'General',
+      price: numPrice,
+      originalPrice: formData.originalPrice ? Number(formData.originalPrice) : numPrice,
+      mrp: formData.originalPrice ? Number(formData.originalPrice) : numPrice,
+      stock: Math.max(0, Number(formData.stock) || 0),
+      inStock: Number(formData.stock) > 0,
+      description: formData.description.trim() || 'A useful everyday find from ZORIQ.',
+      image: formData.image || '',
+      imageUrl: formData.image || '',
+      tags,
+      codAvailable: Boolean(formData.codAvailable),
+    };
+
+    setIsSaving(true);
+    try {
+      if (editingId === 'new') {
+        await addProduct(productPayload);
+      } else {
+        await updateProduct(editingId, productPayload);
+      }
+      setEditingId(null);
+    } catch (err) {
+      console.error('Save product error:', err);
+    } finally {
+      setIsSaving(false);
     }
   };
 
+  const handleDeleteProduct = async (prod) => {
+    if (confirmDeleteId !== prod.id) {
+      setConfirmDeleteId(prod.id);
+      setTimeout(() => {
+        setConfirmDeleteId((prev) => (prev === prod.id ? null : prev));
+      }, 4000);
+      return;
+    }
+    setConfirmDeleteId(null);
+    try {
+      await deleteProduct(prod.id);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const filteredProducts = products.filter((p) => {
+    const q = search.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      (p.name || '').toLowerCase().includes(q) ||
+      (p.category || '').toLowerCase().includes(q)
+    );
+  });
+
   return (
-    <div className="space-y-5 animate-in fade-in">
-      
-      {/* Top Action Bar in Liquid Glass */}
-      <div className="bg-[#101317]/80 backdrop-blur-2xl p-4 sm:p-5 rounded-2xl border border-white/10 shadow-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-mono tracking-widest text-[var(--amber)] uppercase font-bold">
-              Inventory & Catalog
-            </span>
-            <span className="text-xs bg-amber-500/15 text-[var(--amber)] border border-amber-500/30 font-bold px-2.5 py-0.5 rounded-full">
-              {products.length} Products
-            </span>
+    <div className="space-y-4">
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleImageFile}
+      />
+
+      {/* 1. Add / Edit Product Card */}
+      {editingId && (
+        <div className="acard">
+          <div className="flex items-center justify-between">
+            <h4>{editingId === 'new' ? 'Add product' : 'Edit product'}</h4>
+            <button
+              type="button"
+              className="text-[#6b8579] hover:text-[#0b6e4f] text-xs font-semibold"
+              onClick={cancelEdit}
+            >
+              Cancel
+            </button>
           </div>
-          <h2 className="text-lg sm:text-xl font-bold text-white font-['Syne'] mt-0.5">
-            Store Product Information
-          </h2>
-          <p className="text-xs text-[var(--ink2)] mt-0.5">
-            Manage titles, pricing, inventory stock, images, and cash on delivery availability
-          </p>
+
+          <form onSubmit={handleSaveProduct} className="space-y-3 mt-1">
+            {/* Photo preview box */}
+            <div className="ipv" id="pPrev">
+              {formData.image ? (
+                <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-[#6b8579] text-xs">No photo selected</span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="ab gh2 sm"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className="w-3.5 h-3.5 mr-1" />
+                <span>Upload photo</span>
+              </button>
+              {formData.image && (
+                <button
+                  type="button"
+                  className="ab gh2 sm text-rose-600"
+                  onClick={() => setFormData((prev) => ({ ...prev, image: '' }))}
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1" />
+                  <span>Remove photo</span>
+                </button>
+              )}
+            </div>
+
+            {/* Product Name */}
+            <div>
+              <label className="text-xs text-[#4d6b60] font-medium block mb-1">Product name</label>
+              <input
+                type="text"
+                placeholder="Product name (e.g. Minimalist Ceramic Cup)"
+                value={formData.name}
+                onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+                required
+              />
+            </div>
+
+            {/* Collection select */}
+            <div>
+              <label className="text-xs text-[#4d6b60] font-medium block mb-1">Collection</label>
+              <select
+                value={formData.category}
+                onChange={(e) => setFormData((prev) => ({ ...prev, category: e.target.value }))}
+              >
+                {availableCollections.map((col) => (
+                  <option key={col} value={col}>
+                    {col}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Price & MRP */}
+            <div className="two">
+              <div>
+                <label className="text-xs text-[#4d6b60] font-medium block mb-1">Price (₹)</label>
+                <input
+                  type="number"
+                  placeholder="Price ₹"
+                  value={formData.price}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, price: e.target.value }))}
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-xs text-[#4d6b60] font-medium block mb-1">MRP / Original (₹)</label>
+                <input
+                  type="number"
+                  placeholder="MRP ₹"
+                  value={formData.originalPrice}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, originalPrice: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            {/* Stock Count */}
+            <div>
+              <label className="text-xs text-[#4d6b60] font-medium block mb-1">Stock quantity</label>
+              <input
+                type="number"
+                placeholder="Available stock"
+                value={formData.stock}
+                onChange={(e) => setFormData((prev) => ({ ...prev, stock: e.target.value }))}
+              />
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="text-xs text-[#4d6b60] font-medium block mb-1">Description</label>
+              <textarea
+                rows={3}
+                placeholder="Product description and details..."
+                value={formData.description}
+                onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
+              ></textarea>
+            </div>
+
+            {/* Badges / Options */}
+            <div className="flex flex-wrap items-center gap-4 pt-1">
+              <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="w-auto"
+                  checked={formData.isNew}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, isNew: e.target.checked }))}
+                />
+                <span>New arrival tag</span>
+              </label>
+
+              <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="w-auto"
+                  checked={formData.isBestseller}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, isBestseller: e.target.checked }))}
+                />
+                <span>Bestseller tag</span>
+              </label>
+
+              <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="w-auto"
+                  checked={formData.codAvailable}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, codAvailable: e.target.checked }))}
+                />
+                <span>Cash on Delivery (COD)</span>
+              </label>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-2 pt-2">
+              <button type="submit" className="ab" disabled={isSaving}>
+                <span>{isSaving ? 'Saving...' : 'Save product'}</span>
+              </button>
+              <button type="button" className="ab gh2" onClick={cancelEdit}>
+                <span>Cancel</span>
+              </button>
+            </div>
+          </form>
         </div>
+      )}
 
-        <button
-          onClick={handleAddNew}
-          className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-[var(--amber)] hover:bg-[#d67e2a] text-black font-bold text-xs sm:text-sm shadow-lg shadow-amber-500/20 transition-all active:scale-95 cursor-pointer"
-        >
-          <Plus className="w-4 h-4 stroke-[2.5]" />
-          <span>Add New Product</span>
-        </button>
-      </div>
-
-      {/* Filter and Search Bar */}
-      <div className="bg-[#101317]/80 backdrop-blur-2xl p-3 sm:p-3.5 rounded-2xl border border-white/10 shadow-lg flex flex-col sm:flex-row items-center gap-3">
-        <div className="relative flex-1 w-full">
-          <Search className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+      {/* 2. Top Bar & Products List */}
+      <div className="acard">
+        <div className="two">
           <input
             type="text"
+            placeholder="Search products by title or category..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search products by title, SKU, category..."
-            className="w-full pl-10 pr-3 py-2 text-xs bg-black/40 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-[var(--amber)] focus:ring-1 focus:ring-[var(--amber)]"
           />
-        </div>
-
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <Filter className="w-3.5 h-3.5 text-gray-400" />
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="w-full sm:w-auto bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-medium text-gray-200 focus:outline-none focus:border-[var(--amber)] focus:ring-1 focus:ring-[var(--amber)] cursor-pointer"
-          >
-            <option value="all">All Categories</option>
-            <option value="electronics">Electronics & Audio</option>
-            <option value="wearables">Smart Wearables</option>
-            <option value="fashion">Fashion & Apparel</option>
-            <option value="home">Home & Living</option>
-            <option value="accessories">Accessories & Bags</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Empty State */}
-      {products.length === 0 ? (
-        <div className="bg-[#101317]/80 backdrop-blur-2xl rounded-2xl border border-white/10 p-12 text-center text-gray-400">
-          <ShoppingBag className="w-12 h-12 mx-auto mb-3 text-amber-500/60" />
-          <h3 className="text-base font-bold text-white font-['Syne']">Your Store Catalog is Empty</h3>
-          <p className="text-xs text-[var(--ink2)] mt-1 max-w-sm mx-auto">
-            Add your first custom product using the button below. It will instantly sync to the storefront and mobile devices!
-          </p>
-          <button
-            type="button"
-            onClick={handleAddNew}
-            className="mt-4 px-5 py-2.5 bg-[var(--amber)] hover:bg-[#d67e2a] text-black rounded-xl text-xs font-bold shadow-lg shadow-amber-500/20 transition-all inline-flex items-center gap-1.5 cursor-pointer"
-          >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span>Add First Product</span>
+          <button type="button" className="ab flex-none" onClick={startAddNew}>
+            <Plus className="w-4 h-4 mr-1" />
+            <span>+ Add product</span>
           </button>
         </div>
-      ) : filteredProducts.length === 0 ? (
-        <div className="bg-[#101317]/80 backdrop-blur-2xl rounded-2xl border border-white/10 p-10 text-center text-gray-400">
-          <ShoppingBag className="w-10 h-10 mx-auto mb-2 text-gray-600" />
-          <p className="text-xs font-semibold text-gray-300">No products match your search</p>
-          <p className="text-[11px] text-gray-500 mt-1">Try clearing search filters or add a new product</p>
-        </div>
-      ) : (
-        <>
-          {/* 1. MOBILE RESPONSIVE CARD VIEW (Displays on small screens for touch usability) */}
-          <div className="grid grid-cols-1 gap-3.5 sm:hidden">
-            {filteredProducts.map((prod) => {
-              const isLow = prod.stock > 0 && prod.stock <= 5;
-              const isOut = prod.stock <= 0 || !prod.inStock;
+
+        <div className="divide-y divide-[#edf6f2] mt-2">
+          {filteredProducts.length === 0 ? (
+            <div className="py-8 text-center text-sm text-[#6b8579]">
+              No products found matching your search.
+            </div>
+          ) : (
+            filteredProducts.map((p) => {
+              const imgUrl = p.image || p.imageUrl;
+              const isConfirming = confirmDeleteId === p.id;
 
               return (
-                <div
-                  key={prod.id}
-                  className="bg-[#101317]/90 backdrop-blur-2xl rounded-2xl border border-white/10 p-4 space-y-3 shadow-lg shadow-black/40 hover:border-amber-500/30 transition-all"
-                >
-                  <div className="flex items-start gap-3">
-                    <img
-                      src={prod.image}
-                      alt={prod.name}
-                      className="w-16 h-16 rounded-xl object-cover bg-black/40 border border-white/10 flex-shrink-0"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="text-[10px] uppercase tracking-wider text-[var(--ink2)] font-mono">
-                          {prod.category}
-                        </span>
-                        {prod.sellerBadge && (
-                          <span className="bg-amber-500/15 text-[var(--amber)] border border-amber-500/30 text-[9px] font-bold px-1.5 py-0.2 rounded">
-                            {prod.sellerBadge}
-                          </span>
-                        )}
+                <div key={p.id} className="prow">
+                  {/* Thumbnail */}
+                  <div className="pt">
+                    {imgUrl ? (
+                      <img src={imgUrl} alt={p.name} />
+                    ) : (
+                      <div className="w-full h-full bg-[#eef7f2] flex items-center justify-center text-xs font-bold text-[#0b6e4f]">
+                        {(p.name || 'P').slice(0, 2).toUpperCase()}
                       </div>
-                      <h4 className="font-bold text-white text-sm truncate font-['Syne'] mt-0.5" title={prod.name}>
-                        {prod.name}
-                      </h4>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="font-extrabold text-sm text-[var(--amber)] font-['Syne']">
-                          ₹{prod.price?.toLocaleString('en-IN')}
-                        </span>
-                        {prod.originalPrice && prod.originalPrice > prod.price && (
-                          <span className="text-[10.5px] text-gray-500 line-through">
-                            ₹{prod.originalPrice?.toLocaleString('en-IN')}
-                          </span>
-                        )}
-                      </div>
-                    </div>
+                    )}
                   </div>
 
-                  {/* Stock & COD Badges */}
-                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/5 text-[11px]">
+                  {/* Info */}
+                  <div className="pm">
+                    <b>{p.name}</b>
+                    <small className="text-[#6b8579]">
+                      {p.category || 'General'} · ₹{Number(p.price).toLocaleString('en-IN')} · Stock {p.stock !== undefined ? p.stock : 20}
+                    </small>
+                  </div>
+
+                  {/* Actions: Edit & Delete */}
+                  <div className="flex items-center gap-1.5 flex-none">
                     <button
                       type="button"
-                      onClick={() => toggleProductStock(prod.id)}
-                      className={`py-2 px-2.5 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all border ${
-                        prod.inStock && prod.stock > 0
-                          ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                          : 'bg-rose-500/15 text-rose-400 border-rose-500/30'
-                      }`}
+                      className="ab gh2 sm"
+                      onClick={() => startEdit(p)}
                     >
-                      <span className={`w-2 h-2 rounded-full ${prod.inStock && prod.stock > 0 ? 'bg-emerald-400' : 'bg-rose-400'}`} />
-                      <span>{prod.inStock && prod.stock > 0 ? `${prod.stock} in stock` : 'Out of Stock'}</span>
+                      <Edit2 className="w-3.5 h-3.5 mr-1" />
+                      <span>Edit</span>
                     </button>
 
                     <button
                       type="button"
-                      onClick={() => toggleProductCod(prod.id)}
-                      className={`py-2 px-2.5 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all border ${
-                        prod.codAvailable !== false
-                          ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
-                          : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
-                      }`}
+                      className={`ab sm ${isConfirming ? 'rd' : 'gh2 text-rose-600'}`}
+                      onClick={() => handleDeleteProduct(p)}
                     >
-                      <Banknote className="w-3.5 h-3.5" />
-                      <span>{prod.codAvailable !== false ? 'COD: Yes' : 'Prepaid Only'}</span>
-                    </button>
-                  </div>
-
-                  {/* Mobile Actions */}
-                  <div className="flex items-center gap-2 pt-1">
-                    <button
-                      onClick={() => handleEdit(prod)}
-                      className="flex-1 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-xs font-semibold border border-white/10 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                    >
-                      <Edit2 className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Edit Info</span>
-                    </button>
-
-                    <button
-                      onClick={() => setSelectedProduct(prod)}
-                      className="py-2.5 px-3 bg-white/5 hover:bg-white/10 text-[var(--ink2)] hover:text-white rounded-xl text-xs border border-white/10 transition-colors cursor-pointer"
-                      title="Preview Product"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
-
-                    <button
-                      onClick={() => handleDelete(prod)}
-                      className="py-2.5 px-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-xl text-xs border border-rose-500/20 transition-colors cursor-pointer"
-                      title="Delete Product"
-                    >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-3.5 h-3.5 mr-1" />
+                      <span>{isConfirming ? 'Sure?' : 'Delete'}</span>
                     </button>
                   </div>
                 </div>
               );
-            })}
-          </div>
-
-          {/* 2. DESKTOP LIQUID GLASS TABLE VIEW */}
-          <div className="hidden sm:block bg-[#101317]/80 backdrop-blur-2xl rounded-2xl border border-white/10 shadow-xl overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
-                <thead>
-                  <tr className="bg-black/40 border-b border-white/10 text-[11px] font-bold text-[var(--ink2)] uppercase tracking-wider font-mono">
-                    <th className="py-3.5 px-4">Product Info</th>
-                    <th className="py-3.5 px-3">Category</th>
-                    <th className="py-3.5 px-3">Price</th>
-                    <th className="py-3.5 px-3">Stock Units</th>
-                    <th className="py-3.5 px-3">COD Payment</th>
-                    <th className="py-3.5 px-3">Catalog Status</th>
-                    <th className="py-3.5 px-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {filteredProducts.map((prod) => {
-                    const isLow = prod.stock > 0 && prod.stock <= 5;
-                    const isOut = prod.stock <= 0 || !prod.inStock;
-
-                    return (
-                      <tr key={prod.id} className="hover:bg-white/[0.03] transition-colors">
-                        {/* Product Title & Image */}
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-center gap-3">
-                            <img
-                              src={prod.image}
-                              alt={prod.name}
-                              className="w-12 h-12 rounded-xl object-cover bg-black/40 border border-white/10 flex-shrink-0"
-                            />
-                            <div className="min-w-0 max-w-xs">
-                              <h4 className="font-bold text-white truncate font-['Syne'] text-sm" title={prod.name}>
-                                {prod.name}
-                              </h4>
-                              <div className="flex items-center gap-2 mt-0.5">
-                                <span className="font-mono text-[10px] text-gray-500">
-                                  {prod.sku || 'NO-SKU'}
-                                </span>
-                                {prod.sellerBadge && (
-                                  <span className="bg-amber-500/15 text-[var(--amber)] border border-amber-500/30 font-semibold text-[9px] px-1.5 py-0.2 rounded">
-                                    {prod.sellerBadge}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Category */}
-                        <td className="py-3.5 px-3 capitalize font-medium text-gray-300">
-                          {prod.category}
-                        </td>
-
-                        {/* Price */}
-                        <td className="py-3.5 px-3">
-                          <span className="font-bold text-white font-['Syne'] text-sm">
-                            ₹{prod.price?.toLocaleString('en-IN')}
-                          </span>
-                          {prod.originalPrice && prod.originalPrice > prod.price && (
-                            <span className="block text-[10px] text-gray-500 line-through">
-                              ₹{prod.originalPrice?.toLocaleString('en-IN')}
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Stock Units */}
-                        <td className="py-3.5 px-3">
-                          <div className="flex items-center gap-1.5 font-bold">
-                            {isOut ? (
-                              <span className="text-rose-400 flex items-center gap-1 bg-rose-500/10 px-2 py-0.5 rounded-lg border border-rose-500/20 text-[11px]">
-                                <AlertTriangle className="w-3.5 h-3.5" />
-                                0 units
-                              </span>
-                            ) : isLow ? (
-                              <span className="text-amber-400 flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/20 text-[11px]">
-                                <AlertTriangle className="w-3.5 h-3.5" />
-                                {prod.stock} (Low)
-                              </span>
-                            ) : (
-                              <span className="text-gray-200 text-xs font-mono">{prod.stock} units</span>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* COD Availability Toggle */}
-                        <td className="py-3.5 px-3">
-                          <button
-                            type="button"
-                            onClick={() => toggleProductCod(prod.id)}
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold transition-all border cursor-pointer ${
-                              prod.codAvailable !== false
-                                ? 'bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 border-blue-500/30'
-                                : 'bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 border-amber-500/30'
-                            }`}
-                            title="Click to toggle COD for this product"
-                          >
-                            <Banknote className="w-3 h-3" />
-                            <span>{prod.codAvailable !== false ? 'COD: Yes' : 'Prepaid Only'}</span>
-                          </button>
-                        </td>
-
-                        {/* In-Stock Toggle */}
-                        <td className="py-3.5 px-3">
-                          <button
-                            type="button"
-                            onClick={() => toggleProductStock(prod.id)}
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold transition-all border cursor-pointer ${
-                              prod.inStock && prod.stock > 0
-                                ? 'bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border-emerald-500/30'
-                                : 'bg-rose-500/15 text-rose-400 hover:bg-rose-500/25 border-rose-500/30'
-                            }`}
-                          >
-                            <span
-                              className={`w-1.5 h-1.5 rounded-full ${
-                                prod.inStock && prod.stock > 0 ? 'bg-emerald-400' : 'bg-rose-400'
-                              }`}
-                            />
-                            <span>{prod.inStock && prod.stock > 0 ? 'Active' : 'Out of Stock'}</span>
-                          </button>
-                        </td>
-
-                        {/* Actions */}
-                        <td className="py-3.5 px-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() => setSelectedProduct(prod)}
-                              className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
-                              title="Preview Customer Modal"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleEdit(prod)}
-                              className="p-1.5 text-gray-400 hover:text-[var(--amber)] hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
-                              title="Edit Product"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(prod)}
-                              className="p-1.5 text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
-                              title="Delete Product"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </>
-      )}
-
+            })
+          )}
+        </div>
+      </div>
     </div>
   );
 }

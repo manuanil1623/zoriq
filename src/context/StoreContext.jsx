@@ -194,7 +194,7 @@ export function StoreProvider({ children }) {
   // Seller Portal modals and tabs
   const [isProductEditorOpen, setIsProductEditorOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState(null);
-  const [sellerActiveTab, setSellerActiveTab] = useState('images'); // 'collections' | 'orders' | 'images' | 'settings' | 'products' | 'dashboard'
+  const [sellerActiveTab, setSellerActiveTab] = useState('products'); // 'products' | 'collections' | 'orders' | 'images' | 'settings' | 'dashboard'
 
   // Search and Filter states
   const [searchQuery, setSearchQuery] = useState('');
