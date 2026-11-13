@@ -118,15 +118,20 @@ export default function CustomerStorefront() {
   return (
     <div className="bg-[#fcfbf8] text-[#1c1a17]">
       {/* 1. HERO SECTION */}
-      <section className="hero">
-        {/* Floating subtle geometric illustration */}
-        <div className="art" aria-hidden="true">
-          <svg viewBox="0 0 200 250" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect width="200" height="250" rx="16" fill="rgba(255,255,255,0.4)" />
-            <circle cx="100" cy="110" r="54" fill="#c9a56b" opacity="0.3" />
-            <rect x="58" y="70" width="84" height="110" rx="12" fill="#fff" opacity="0.6" />
-          </svg>
-        </div>
+      <section
+        className={`hero ${sellerSettings?.heroImage ? 'hasimg' : ''}`}
+        style={sellerSettings?.heroImage ? { backgroundImage: `url(${sellerSettings.heroImage})` } : undefined}
+      >
+        {/* Floating subtle geometric illustration (only shown on default gradient) */}
+        {!sellerSettings?.heroImage && (
+          <div className="art" aria-hidden="true">
+            <svg viewBox="0 0 200 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect width="200" height="250" rx="16" fill="rgba(255,255,255,0.4)" />
+              <circle cx="100" cy="110" r="54" fill="#c9a56b" opacity="0.3" />
+              <rect x="58" y="70" width="84" height="110" rx="12" fill="#fff" opacity="0.6" />
+            </svg>
+          </div>
+        )}
 
         <div className="c">
           <div className="eyebrow">Everyday store</div>
@@ -162,26 +167,31 @@ export default function CustomerStorefront() {
       {/* 2. ROTATING CIRCULAR COLLECTIONS ROW */}
       <div id="collections" className="wrap">
         <div className="cols">
-          {collectionsWithImages.map((col, idx) => (
-            <div
-              key={idx}
-              className="col"
-              onClick={() => handleCollectionSelect(col.category)}
-            >
-              <div className="ring">
-                <div>
-                  {col.image ? (
-                    <img src={col.image} alt={col.category} />
-                  ) : (
-                    <div className="w-full h-full bg-[#f4f0e9] flex items-center justify-center text-xs font-semibold uppercase tracking-widest text-[var(--gold)]">
-                      {col.category.slice(0, 3)}
-                    </div>
-                  )}
+          {collectionsWithImages.map((col, idx) => {
+            const customColImg = sellerSettings?.collectionImages?.[col.category];
+            const displayImg = customColImg || col.image;
+
+            return (
+              <div
+                key={idx}
+                className="col"
+                onClick={() => handleCollectionSelect(col.category)}
+              >
+                <div className="ring">
+                  <div>
+                    {displayImg ? (
+                      <img src={displayImg} alt={col.category} />
+                    ) : (
+                      <div className="w-full h-full bg-[#f4f0e9] flex items-center justify-center text-xs font-semibold uppercase tracking-widest text-[var(--gold)]">
+                        {col.category.slice(0, 3)}
+                      </div>
+                    )}
+                  </div>
                 </div>
+                <span>{col.category}</span>
               </div>
-              <span>{col.category}</span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

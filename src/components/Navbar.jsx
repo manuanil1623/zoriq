@@ -355,45 +355,31 @@ export default function Navbar() {
   // 2. SELLER MODE: Admin Portal Top Bar
   return (
     <div className="atop">
-      <div className="alogo">z</div>
+      <div className="alogo">z.</div>
       <span>
-        zoriq merchant
-        <b className="live">● LIVE SYNC</b>
+        Merchant Portal
+        <b className="live">Live store</b>
       </span>
 
-      <div className="asp"></div>
+      <span className="asp"></span>
 
       <div className="flex items-center gap-2">
         <button
           type="button"
-          onClick={() => {
-            setProductToEdit(null);
-            setIsProductEditorOpen(true);
-          }}
-          className="ab sm flex items-center gap-1.5"
-          title="Add New Product"
-        >
-          <PlusCircle className="w-4 h-4" />
-          <span className="hidden sm:inline">Add Product</span>
-        </button>
-
-        <button
-          type="button"
           onClick={() => setRole('customer')}
-          className="ag flex items-center gap-1"
-          title="Switch to Storefront"
+          className="ag"
+          title="View Storefront"
         >
-          <span>Storefront</span>
-          <ArrowRight className="w-3.5 h-3.5" />
+          View store
         </button>
 
         <button
           type="button"
           onClick={logoutAdmin}
-          className="p-2 text-rose-600 hover:text-rose-700 transition-colors"
+          className="ag"
           title="Sign out of Admin"
         >
-          <LogOut className="w-4 h-4" />
+          Log out
         </button>
       </div>
     </div>
