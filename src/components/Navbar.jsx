@@ -34,6 +34,7 @@ export default function Navbar() {
     setIsSearchOpen,
     setActiveInfoPage,
     setSelectedCategory,
+    collections,
     sellerActiveTab,
     setSellerActiveTab,
     setIsProductEditorOpen,
@@ -80,16 +81,10 @@ export default function Navbar() {
     };
   }, [setIsAdminLoginModalOpen]);
 
-  // Categories list for menu
+  // Categories list for menu based on collections
   const uniqueCategories = React.useMemo(() => {
-    const set = new Set();
-    products.forEach((p) => {
-      if (p.category) {
-        set.add(p.category.charAt(0).toUpperCase() + p.category.slice(1));
-      }
-    });
-    return Array.from(set);
-  }, [products]);
+    return collections || [];
+  }, [collections]);
 
   const handleCategoryClick = (cat) => {
     setSelectedCategory(cat.toLowerCase());

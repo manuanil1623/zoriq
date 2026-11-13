@@ -1,61 +1,68 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '../../context/StoreContext';
-import { Plus, Trash2, Save, Layers } from 'lucide-react';
+import { Plus, Trash2, Save, Image as ImageIcon } from 'lucide-react';
 
 export default function CollectionsManager() {
   const {
     products,
-    sellerSettings,
-    updateSellerSettings,
+    collections,
+    addCollection,
+    renameCollection,
+    deleteCollection,
     storeImages,
+    sellerSettings,
+    setSellerActiveTab,
     addToast
   } = useStore();
 
   const [newColName, setNewColName] = useState('');
+  const [editedNames, setEditedNames] = useState({});
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Default collections list or saved custom collections
-  const collections = React.useMemo(() => {
-    const list = [
-      'Glassware',
-      'Kitchen Finds',
-      'Bottles & Lunch Boxes',
-      'Steel Essentials',
-      'Lunch Boxes'
-    ];
-    products.forEach((p) => {
-      if (p.category) {
-        const cat = p.category.charAt(0).toUpperCase() + p.category.slice(1);
-        if (!list.includes(cat)) {
-          list.push(cat);
-        }
-      }
+  // Initialize editedNames map when collections list updates
+  useEffect(() => {
+    const map = {};
+    (collections || []).forEach((c) => {
+      map[c] = c;
     });
-    return list;
-  }, [products]);
+    setEditedNames(map);
+  }, [collections]);
 
-  const handleAddCollection = async (e) => {
+  const handleAdd = async (e) => {
     e.preventDefault();
-    const clean = newColName.trim();
-    if (!clean) return;
+    if (!newColName.trim()) return;
+    setIsSubmitting(true);
+    try {
+      await addCollection(newColName.trim());
+      setNewColName('');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
-    if (collections.map((c) => c.toLowerCase()).includes(clean.toLowerCase())) {
-      addToast('Collection already exists!', 'warning');
+  const handleSaveRename = async (originalName) => {
+    const currentVal = (editedNames[originalName] || '').trim();
+    if (!currentVal) {
+      addToast('Name cannot be empty', 'warning');
       return;
     }
-
-    try {
-      const customCols = sellerSettings?.customCollections || [];
-      const updated = {
-        ...sellerSettings,
-        customCollections: [...customCols, clean],
-      };
-      await updateSellerSettings(updated);
-      setNewColName('');
-      addToast(`Collection "${clean}" added! You can now set its picture in the Images tab.`, 'success');
-    } catch (err) {
-      console.error(err);
-      addToast('Failed to add collection', 'error');
+    if (currentVal.toLowerCase() === originalName.toLowerCase()) {
+      return;
     }
+    await renameCollection(originalName, currentVal);
+  };
+
+  const handleDelete = async (colName) => {
+    if (confirmDelete !== colName) {
+      setConfirmDelete(colName);
+      setTimeout(() => {
+        setConfirmDelete((prev) => (prev === colName ? null : prev));
+      }, 4000);
+      return;
+    }
+    setConfirmDelete(null);
+    await deleteCollection(colName);
   };
 
   return (
@@ -63,14 +70,14 @@ export default function CollectionsManager() {
       {/* 1. Add Collection Card */}
       <div className="acard">
         <h4>Add collection</h4>
-        <form onSubmit={handleAddCollection} className="two">
+        <form onSubmit={handleAdd} className="two">
           <input
             type="text"
             placeholder="Collection name (e.g. Wooden Serveware)"
             value={newColName}
             onChange={(e) => setNewColName(e.target.value)}
           />
-          <button type="submit" className="ab">
+          <button type="submit" className="ab" disabled={isSubmitting}>
             <Plus className="w-4 h-4 mr-1" />
             <span>Add collection</span>
           </button>
@@ -83,16 +90,31 @@ export default function CollectionsManager() {
 
       {/* 2. Your Collections Card */}
       <div className="acard">
-        <h4>Your collections ({collections.length})</h4>
-        <div className="divide-y divide-[#edf6f2]">
-          {collections.map((col) => {
+        <div className="flex items-center justify-between">
+          <h4>Your collections ({collections?.length || 0})</h4>
+          <button
+            type="button"
+            className="ab gh2 sm"
+            onClick={() => setSellerActiveTab('images')}
+          >
+            <ImageIcon className="w-3.5 h-3.5 mr-1" />
+            <span>Set photos in Images tab</span>
+          </button>
+        </div>
+
+        <div className="divide-y divide-[#edf6f2] mt-2">
+          {(collections || []).map((col) => {
             const productCount = products.filter(
               (p) => (p.category || '').toLowerCase() === col.toLowerCase()
             ).length;
             const customPic = storeImages?.cols?.[col] || sellerSettings?.collectionImages?.[col];
+            const currentInputVal = editedNames[col] !== undefined ? editedNames[col] : col;
+            const hasChanged = currentInputVal.trim() !== '' && currentInputVal.trim() !== col;
+            const isConfirmingDelete = confirmDelete === col;
 
             return (
               <div key={col} className="prow">
+                {/* Visual Thumbnail */}
                 <div className="pt">
                   {customPic ? (
                     <img src={customPic} alt={col} />
@@ -103,9 +125,52 @@ export default function CollectionsManager() {
                   )}
                 </div>
 
+                {/* Editable Name & Product Count */}
                 <div className="pm">
-                  <b>{col}</b>
-                  <small>{productCount} products in this collection</small>
+                  <input
+                    type="text"
+                    value={currentInputVal}
+                    onChange={(e) =>
+                      setEditedNames((prev) => ({
+                        ...prev,
+                        [col]: e.target.value,
+                      }))
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleSaveRename(col);
+                      }
+                    }}
+                    placeholder="Collection name"
+                  />
+                  <small className="text-[#6b8579]">
+                    {productCount} product{productCount === 1 ? '' : 's'} in this collection
+                  </small>
+                </div>
+
+                {/* Actions: Save & Delete */}
+                <div className="flex items-center gap-1.5 flex-none">
+                  <button
+                    type="button"
+                    className={`ab sm ${hasChanged ? '' : 'gh2 opacity-60'}`}
+                    disabled={!hasChanged}
+                    onClick={() => handleSaveRename(col)}
+                    title={hasChanged ? 'Save renamed collection' : 'No changes to save'}
+                  >
+                    <Save className="w-3.5 h-3.5 mr-1" />
+                    <span>Save</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`ab sm ${isConfirmingDelete ? 'rd' : 'gh2 text-rose-600'}`}
+                    onClick={() => handleDelete(col)}
+                    title="Delete collection"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-1" />
+                    <span>{isConfirmingDelete ? 'Sure?' : 'Delete'}</span>
+                  </button>
                 </div>
               </div>
             );

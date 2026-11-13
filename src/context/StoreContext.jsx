@@ -959,6 +959,153 @@ export function StoreProvider({ children }) {
     } catch (err) {}
   };
 
+  // Curated & Dynamic Collections Management
+  const collections = useMemo(() => {
+    const list = Array.isArray(sellerSettings?.collections) && sellerSettings.collections.length > 0
+      ? [...sellerSettings.collections]
+      : [
+          'Glassware',
+          'Kitchen Finds',
+          'Bottles & Lunch Boxes',
+          'Steel Essentials',
+          'Lunch Boxes'
+        ];
+    // Ensure any product category currently in catalog is retained
+    products.forEach((p) => {
+      if (p.category) {
+        const clean = p.category.charAt(0).toUpperCase() + p.category.slice(1);
+        if (!list.some((c) => c.toLowerCase() === clean.toLowerCase())) {
+          list.push(clean);
+        }
+      }
+    });
+    return list;
+  }, [sellerSettings?.collections, products]);
+
+  const addCollection = async (name) => {
+    const clean = (name || '').trim();
+    if (!clean) {
+      addToast('Please enter a collection name', 'warning');
+      return;
+    }
+    if (collections.some((c) => c.toLowerCase() === clean.toLowerCase())) {
+      addToast(`Collection "${clean}" already exists!`, 'warning');
+      return;
+    }
+    const nextCols = [...collections, clean];
+    const updated = {
+      ...sellerSettings,
+      collections: nextCols,
+    };
+    setSellerSettings(updated);
+    try {
+      if (adminToken) {
+        await updateSettingsSection('collections', updated);
+      }
+      addToast(`Collection "${clean}" added!`, 'success');
+    } catch (err) {
+      console.error('Failed to add collection:', err);
+      addToast('Failed to save collection to cloud.', 'error');
+    }
+  };
+
+  const renameCollection = async (oldName, newName) => {
+    const cleanNew = (newName || '').trim();
+    if (!cleanNew) {
+      addToast('Collection name cannot be empty', 'warning');
+      return;
+    }
+    if (oldName.toLowerCase() === cleanNew.toLowerCase()) return;
+    if (collections.some((c) => c.toLowerCase() === cleanNew.toLowerCase() && c.toLowerCase() !== oldName.toLowerCase())) {
+      addToast(`A collection named "${cleanNew}" already exists!`, 'warning');
+      return;
+    }
+
+    const nextCols = collections.map((c) => c.toLowerCase() === oldName.toLowerCase() ? cleanNew : c);
+    const updatedCollectionImages = { ...(sellerSettings?.collectionImages || {}) };
+    if (updatedCollectionImages[oldName]) {
+      updatedCollectionImages[cleanNew] = updatedCollectionImages[oldName];
+      delete updatedCollectionImages[oldName];
+    }
+
+    const updated = {
+      ...sellerSettings,
+      collections: nextCols,
+      collectionImages: updatedCollectionImages,
+    };
+    setSellerSettings(updated);
+
+    // Update products belonging to this collection
+    const affectedProducts = products.filter(
+      (p) => (p.category || '').toLowerCase() === oldName.toLowerCase()
+    );
+
+    setProducts((prev) =>
+      prev.map((p) =>
+        (p.category || '').toLowerCase() === oldName.toLowerCase()
+          ? { ...p, category: cleanNew }
+          : p
+      )
+    );
+
+    try {
+      if (adminToken) {
+        await updateSettingsSection('collections', updated);
+        for (const prod of affectedProducts) {
+          await updateProduct(prod.id, { category: cleanNew });
+        }
+      }
+      addToast(`Renamed to "${cleanNew}" across all products!`, 'success');
+    } catch (err) {
+      console.error('Failed to rename collection:', err);
+      addToast('Renamed locally, error syncing products.', 'error');
+    }
+  };
+
+  const deleteCollection = async (name) => {
+    if (collections.length <= 1) {
+      addToast('Store must have at least one collection.', 'warning');
+      return;
+    }
+
+    const nextCols = collections.filter((c) => c.toLowerCase() !== name.toLowerCase());
+    const updatedCollectionImages = { ...(sellerSettings?.collectionImages || {}) };
+    delete updatedCollectionImages[name];
+
+    const updated = {
+      ...sellerSettings,
+      collections: nextCols,
+      collectionImages: updatedCollectionImages,
+    };
+    setSellerSettings(updated);
+
+    // Reassign products to 'General' so they aren't lost
+    const affectedProducts = products.filter(
+      (p) => (p.category || '').toLowerCase() === name.toLowerCase()
+    );
+
+    setProducts((prev) =>
+      prev.map((p) =>
+        (p.category || '').toLowerCase() === name.toLowerCase()
+          ? { ...p, category: 'General' }
+          : p
+      )
+    );
+
+    try {
+      if (adminToken) {
+        await updateSettingsSection('collections', updated);
+        for (const prod of affectedProducts) {
+          await updateProduct(prod.id, { category: 'General' });
+        }
+      }
+      addToast(`Collection "${name}" deleted. Products moved to General.`, 'info');
+    } catch (err) {
+      console.error('Failed to delete collection:', err);
+      addToast('Deleted locally, error syncing to cloud.', 'error');
+    }
+  };
+
   const reloadLatestSettings = async () => {
     try {
       if (conflictSettings) {
@@ -1253,6 +1400,10 @@ export function StoreProvider({ children }) {
         setSearchQuery,
         selectedCategory,
         setSelectedCategory,
+        collections,
+        addCollection,
+        renameCollection,
+        deleteCollection,
         sortBy,
         setSortBy,
 

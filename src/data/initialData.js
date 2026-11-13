@@ -17,6 +17,13 @@ export const DEFAULT_SELLER_SETTINGS = {
   tagline: 'SHOP MORE. LIVE BETTER.',
   logoUrl: '/zoriq-logo.jpg',
   heroImage: 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1920&q=80',
+  collections: [
+    'Glassware',
+    'Kitchen Finds',
+    'Bottles & Lunch Boxes',
+    'Steel Essentials',
+    'Lunch Boxes'
+  ],
   contactPhone: '9037396484 / 9778061371',
   contactEmail: 'zoriq556@gmail.com',
   address: 'muthuthala,pattambi,kerala',

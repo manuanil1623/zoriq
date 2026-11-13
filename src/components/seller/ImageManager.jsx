@@ -38,6 +38,7 @@ export default function ImageManager() {
     removeCollectionImage,
     sellerSettings,
     products,
+    collections,
     setSellerActiveTab,
     addToast
   } = useStore();
@@ -48,25 +49,8 @@ export default function ImageManager() {
   const [isUploadingHero, setIsUploadingHero] = useState(false);
   const [uploadingColName, setUploadingColName] = useState(null);
 
-  // Dynamic unique collections from products catalog or defaults
-  const collectionsList = React.useMemo(() => {
-    const list = [
-      'Glassware',
-      'Kitchen Finds',
-      'Bottles & Lunch Boxes',
-      'Steel Essentials',
-      'Lunch Boxes'
-    ];
-    products.forEach((p) => {
-      if (p.category) {
-        const cat = p.category.charAt(0).toUpperCase() + p.category.slice(1);
-        if (!list.includes(cat)) {
-          list.push(cat);
-        }
-      }
-    });
-    return list;
-  }, [products]);
+  // Use dynamic collections from store
+  const collectionsList = collections || [];
 
   // Current hero image (from storeImages or legacy sellerSettings)
   const heroImage = storeImages?.hero || sellerSettings?.heroImage || '';

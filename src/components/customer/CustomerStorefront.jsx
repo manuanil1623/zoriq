@@ -17,6 +17,7 @@ export default function CustomerStorefront() {
     products,
     sellerSettings,
     storeImages,
+    collections,
     addToCart,
     setSelectedProduct,
     toggleWishlist,
@@ -30,44 +31,31 @@ export default function CustomerStorefront() {
     setActiveInfoPage,
   } = useStore();
 
-  // Derived categories with item counts
+  // Derived categories with item counts based on store collections
   const categoriesList = useMemo(() => {
-    const counts = {};
-    products.forEach((p) => {
-      const cat = p.category ? p.category.charAt(0).toUpperCase() + p.category.slice(1) : 'General';
-      counts[cat] = (counts[cat] || 0) + 1;
+    const list = [{ name: 'All', count: products.length }];
+    (collections || []).forEach((colName) => {
+      const count = products.filter(
+        (p) => (p.category || '').toLowerCase() === colName.toLowerCase()
+      ).length;
+      list.push({ name: colName, count });
     });
-
-    const entries = Object.entries(counts).map(([k, v]) => ({ name: k, count: v }));
-    return [{ name: 'All', count: products.length }, ...entries];
-  }, [products]);
+    return list;
+  }, [collections, products]);
 
   // Curated collections with representative products
   const collectionsWithImages = useMemo(() => {
-    const list = [];
-    const seen = new Set();
-
-    products.forEach((p) => {
-      const cat = p.category ? p.category.charAt(0).toUpperCase() + p.category.slice(1) : 'General';
-      if (!seen.has(cat)) {
-        seen.add(cat);
-        list.push({
-          category: cat,
-          image: p.imageUrl || null,
-          sampleProduct: p,
-        });
-      }
+    return (collections || []).map((colName) => {
+      const sample = products.find(
+        (p) => (p.category || '').toLowerCase() === colName.toLowerCase()
+      );
+      return {
+        category: colName,
+        image: sample?.imageUrl || null,
+        sampleProduct: sample,
+      };
     });
-
-    // Provide default fallback categories if catalog is small
-    if (list.length < 3) {
-      if (!seen.has('Glassware')) list.push({ category: 'Glassware', image: null });
-      if (!seen.has('Kitchen Finds')) list.push({ category: 'Kitchen Finds', image: null });
-      if (!seen.has('Bottles')) list.push({ category: 'Bottles', image: null });
-    }
-
-    return list.slice(0, 6);
-  }, [products]);
+  }, [collections, products]);
 
   // Filtered & Sorted products for Grid
   const filteredProducts = useMemo(() => {

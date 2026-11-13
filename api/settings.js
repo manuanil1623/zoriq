@@ -19,6 +19,13 @@ function mapDbToPublicSettings(row) {
     logoUrl: row.logo_url ?? '/zoriq-logo.jpg',
     heroImage: row.hero_image ?? (typeof row.social_links === 'object' ? row.social_links?.heroImage : '') ?? '',
     collectionImages: row.collection_images ?? (typeof row.social_links === 'object' ? row.social_links?.collectionImages : {}) ?? {},
+    collections: row.collections ?? (typeof row.social_links === 'object' ? row.social_links?.collections : null) ?? [
+      'Glassware',
+      'Kitchen Finds',
+      'Bottles & Lunch Boxes',
+      'Steel Essentials',
+      'Lunch Boxes'
+    ],
     contactPhone: row.contact_phone ?? '',
     contactEmail: row.contact_email ?? '',
     address: row.address ?? '',
@@ -243,8 +250,8 @@ export default async function handler(req, res) {
       if (payload.footerText !== undefined) updateData.footer_text = String(payload.footerText).trim();
       if (payload.announcement !== undefined) updateData.announcement = String(payload.announcement).trim();
 
-      // Storefront visual images (synced across all devices via JSONB)
-      if (payload.heroImage !== undefined || payload.collectionImages !== undefined) {
+      // Storefront visual images & collections (synced across all devices via JSONB)
+      if (payload.heroImage !== undefined || payload.collectionImages !== undefined || payload.collections !== undefined) {
         let existingSocial = currentData?.social_links;
         if (typeof existingSocial === 'string') {
           try { existingSocial = JSON.parse(existingSocial); } catch {}
@@ -258,6 +265,7 @@ export default async function handler(req, res) {
         };
         if (payload.heroImage !== undefined) updatedSocial.heroImage = payload.heroImage;
         if (payload.collectionImages !== undefined) updatedSocial.collectionImages = payload.collectionImages;
+        if (payload.collections !== undefined) updatedSocial.collections = payload.collections;
         updateData.social_links = updatedSocial;
       }
 
