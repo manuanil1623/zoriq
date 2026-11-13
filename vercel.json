@@ -4,6 +4,14 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/api/admin-login",
+      "destination": "/api/admin/login"
+    },
+    {
+      "source": "/api/admin/:route*",
+      "destination": "/api/admin/[route]"
+    },
+    {
       "source": "/((?!api/.*).*)",
       "destination": "/index.html"
     }

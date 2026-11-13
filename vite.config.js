@@ -28,20 +28,16 @@ export default defineConfig(({ mode }) => {
             const pathname = parsedUrl.pathname;
 
             const routeMap = {
-              '/api/admin-login': './api/admin-login.js',
-              '/api/admin/login': './api/admin/login.js',
-              '/api/admin/verify': './api/admin/verify.js',
-              '/api/admin/change-password': './api/admin/change-password.js',
-              '/api/admin/products': './api/admin/products.js',
-              '/api/admin/settings': './api/admin/settings.js',
               '/api/settings': './api/settings.js',
-              '/api/admin/orders': './api/admin/orders.js',
-              '/api/admin/upload': './api/admin/upload.js',
+              '/api/products': './api/products.js',
               '/api/orders': './api/orders.js',
               '/api/customer/auth': './api/customer/auth.js',
             };
 
-            const handlerFile = routeMap[pathname];
+            let handlerFile = routeMap[pathname];
+            if (!handlerFile && (pathname.startsWith('/api/admin/') || pathname === '/api/admin-login')) {
+              handlerFile = './api/admin/[route].js';
+            }
             if (!handlerFile) {
               return next();
             }

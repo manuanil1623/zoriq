@@ -152,7 +152,7 @@ async function fetchWithAdminAuth(url, options = {}, token) {
 }
 
 export async function adminLogin(password) {
-  const res = await fetch('/api/admin-login', {
+  const res = await fetch('/api/admin/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ password }),
