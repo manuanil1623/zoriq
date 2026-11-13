@@ -1,6 +1,33 @@
 import React, { useRef, useState } from 'react';
 import { useStore } from '../../context/StoreContext';
-import { Upload, Trash2, ArrowRight, RefreshCw } from 'lucide-react';
+import { Upload, Trash2, ArrowRight, RefreshCw, Sparkles } from 'lucide-react';
+
+export const CURATED_HERO_PRESETS = [
+  {
+    id: 'japandi-wood',
+    name: 'Japandi Warm Wood & Sunlight',
+    url: 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=1920&q=80',
+    thumb: 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=300&q=80'
+  },
+  {
+    id: 'ceramic-kitchen',
+    name: 'Artisan Ceramics & Warm Linen',
+    url: 'https://images.unsplash.com/photo-1507089947368-19c1da9775ae?auto=format&fit=crop&w=1920&q=80',
+    thumb: 'https://images.unsplash.com/photo-1507089947368-19c1da9775ae?auto=format&fit=crop&w=300&q=80'
+  },
+  {
+    id: 'minimal-shelf',
+    name: 'Open Oak Shelf & Glassware',
+    url: 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=1920&q=80',
+    thumb: 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=300&q=80'
+  },
+  {
+    id: 'modern-stone',
+    name: 'Modern Beige Counter & Botanicals',
+    url: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1920&q=80',
+    thumb: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=300&q=80'
+  }
+];
 
 export default function ImageManager() {
   const {
@@ -186,6 +213,50 @@ export default function ImageManager() {
         <small className="block mt-2 text-xs text-[#6b8579]">
           Shown behind the homepage headline. Wide landscape photos work best.
         </small>
+
+        {/* Curated Aesthetic Presets */}
+        <div className="mt-3 pt-3 border-t border-[#edf6f2]">
+          <div className="flex items-center gap-1.5 mb-2">
+            <Sparkles className="w-3.5 h-3.5 text-[#0b6e4f]" />
+            <span className="text-xs font-semibold text-[#0f2a21] uppercase tracking-wider">
+              Pinterest Aesthetic Presets
+            </span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {CURATED_HERO_PRESETS.map((preset) => {
+              const isSelected = heroImage === preset.url;
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => {
+                    updateHeroImage(preset.url);
+                    addToast(`Applied "${preset.name}" as background!`, 'success');
+                  }}
+                  className={`text-left rounded-lg overflow-hidden border-2 transition-all group ${
+                    isSelected ? 'border-[#0b6e4f] shadow-sm ring-2 ring-[#0b6e4f]/30' : 'border-black/5 hover:border-[#0b6e4f]/50'
+                  }`}
+                >
+                  <div className="h-16 w-full overflow-hidden relative">
+                    <img
+                      src={preset.thumb}
+                      alt={preset.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                    />
+                    {isSelected && (
+                      <div className="absolute top-1 right-1 bg-[#0b6e4f] text-white text-[9px] px-1.5 py-0.5 rounded font-bold">
+                        Active
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-1.5 bg-white text-[11px] font-medium text-[#1c1a17] truncate">
+                    {preset.name}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* 2. Collection pictures Card */}

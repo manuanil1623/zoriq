@@ -16,6 +16,7 @@ export const DEFAULT_SELLER_SETTINGS = {
   storeName: 'ZORIQ',
   tagline: 'SHOP MORE. LIVE BETTER.',
   logoUrl: '/zoriq-logo.jpg',
+  heroImage: 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=1920&q=80',
   contactPhone: '9037396484 / 9778061371',
   contactEmail: 'zoriq556@gmail.com',
   address: 'muthuthala,pattambi,kerala',
