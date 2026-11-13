@@ -6,8 +6,8 @@ import {
   hashPassword,
   verifyPassword,
   signAdminToken
-} from '../_lib/auth.js';
-import { getSupabaseAdmin, isSupabaseConfigured } from '../_lib/supabaseAdmin.js';
+} from './_lib/auth.js';
+import { getSupabaseAdmin, isSupabaseConfigured } from './_lib/supabaseAdmin.js';
 
 function formatDbProduct(prod) {
   return {
@@ -42,12 +42,14 @@ export default async function handler(req, res) {
 
   // Determine subroute
   const parsedUrl = new URL(req.url, 'http://localhost');
-  const route = (req.query?.route || parsedUrl.pathname.replace(/^\/api\/admin\/?/, '').split('/')[0] || '').toLowerCase();
+  const routeParam = req.query?.route || parsedUrl.searchParams.get('route');
+  const pathClean = parsedUrl.pathname.replace(/^\/api\/admin\/?/, '').split('/')[0];
+  const route = (routeParam || pathClean || '').toLowerCase();
 
   const supabase = getSupabaseAdmin();
 
   // ==========================================
-  // 1. LOGIN: /api/admin/login
+  // 1. LOGIN: /api/admin/login or /api/admin-login
   // ==========================================
   if (route === 'login') {
     if (req.method !== 'POST') {

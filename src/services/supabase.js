@@ -152,7 +152,7 @@ async function fetchWithAdminAuth(url, options = {}, token) {
 }
 
 export async function adminLogin(password) {
-  const res = await fetch('/api/admin/login', {
+  const res = await fetch('/api/admin?route=login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ password }),
@@ -170,7 +170,7 @@ export async function adminLogin(password) {
 
 export async function adminChangePassword(currentPassword, newPassword, confirmPassword, token) {
   return await fetchWithAdminAuth(
-    '/api/admin/change-password',
+    '/api/admin?route=change-password',
     {
       method: 'POST',
       body: JSON.stringify({ currentPassword, newPassword, confirmPassword }),
@@ -181,7 +181,7 @@ export async function adminChangePassword(currentPassword, newPassword, confirmP
 
 export async function adminVerifyToken(token) {
   try {
-    const res = await fetch('/api/admin/verify', {
+    const res = await fetch('/api/admin?route=verify', {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -195,7 +195,7 @@ export async function adminVerifyToken(token) {
 
 export async function adminAddProduct(productData, token) {
   const data = await fetchWithAdminAuth(
-    '/api/admin/products',
+    '/api/admin?route=products',
     {
       method: 'POST',
       body: JSON.stringify(productData),
@@ -207,7 +207,7 @@ export async function adminAddProduct(productData, token) {
 
 export async function adminUpdateProduct(productId, productData, token) {
   const data = await fetchWithAdminAuth(
-    '/api/admin/products',
+    '/api/admin?route=products',
     {
       method: 'PUT',
       body: JSON.stringify({ ...productData, id: productId }),
@@ -219,7 +219,7 @@ export async function adminUpdateProduct(productId, productData, token) {
 
 export async function adminDeleteProduct(productId, token) {
   return await fetchWithAdminAuth(
-    `/api/admin/products?id=${encodeURIComponent(productId)}`,
+    `/api/admin?route=products&id=${encodeURIComponent(productId)}`,
     {
       method: 'DELETE',
     },
@@ -229,7 +229,7 @@ export async function adminDeleteProduct(productId, token) {
 
 export async function adminImportProducts(productsList, token) {
   return await fetchWithAdminAuth(
-    '/api/admin/products',
+    '/api/admin?route=products',
     {
       method: 'POST',
       body: JSON.stringify({ products: productsList }),
@@ -263,13 +263,13 @@ export async function adminUpdateSettings(settingsData, token) {
 }
 
 export async function adminGetOrders(token) {
-  const data = await fetchWithAdminAuth('/api/admin/orders', { method: 'GET' }, token);
+  const data = await fetchWithAdminAuth('/api/admin?route=orders', { method: 'GET' }, token);
   return Array.isArray(data) ? data.map(mapOrderFromDb) : [];
 }
 
 export async function adminUpdateOrderStatus(orderId, orderStatus, paymentStatus, token) {
   const data = await fetchWithAdminAuth(
-    '/api/admin/orders',
+    '/api/admin?route=orders',
     {
       method: 'POST',
       body: JSON.stringify({ orderId, orderStatus, paymentStatus }),
@@ -286,7 +286,7 @@ export async function adminUploadImage(file, token) {
       try {
         const base64Data = reader.result;
         const res = await fetchWithAdminAuth(
-          '/api/admin/upload',
+          '/api/admin?route=upload',
           {
             method: 'POST',
             body: JSON.stringify({
@@ -367,7 +367,7 @@ export async function lookupCustomerOrders(query = '') {
 // --- Customer Authentication API Functions ---
 
 export async function customerSignUp(signUpData) {
-  const res = await fetch('/api/customer/auth', {
+  const res = await fetch('/api/customer', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'signup', ...signUpData }),
@@ -380,7 +380,7 @@ export async function customerSignUp(signUpData) {
 }
 
 export async function customerLogin(loginData) {
-  const res = await fetch('/api/customer/auth', {
+  const res = await fetch('/api/customer', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'login', ...loginData }),
@@ -394,7 +394,7 @@ export async function customerLogin(loginData) {
 
 export async function customerGetProfile(token) {
   if (!token) return null;
-  const res = await fetch('/api/customer/auth', {
+  const res = await fetch('/api/customer', {
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await res.json().catch(() => ({}));
@@ -404,7 +404,7 @@ export async function customerGetProfile(token) {
 
 export async function customerUpdateProfile(profileData, token) {
   if (!token) throw new Error('Customer authentication token required.');
-  const res = await fetch('/api/customer/auth', {
+  const res = await fetch('/api/customer', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

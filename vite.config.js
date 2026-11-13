@@ -31,12 +31,18 @@ export default defineConfig(({ mode }) => {
               '/api/settings': './api/settings.js',
               '/api/products': './api/products.js',
               '/api/orders': './api/orders.js',
-              '/api/customer/auth': './api/customer/auth.js',
+              '/api/customer': './api/customer.js',
+              '/api/customer/auth': './api/customer.js',
+              '/api/admin': './api/admin.js',
             };
 
             let handlerFile = routeMap[pathname];
-            if (!handlerFile && (pathname.startsWith('/api/admin/') || pathname === '/api/admin-login')) {
-              handlerFile = './api/admin/[route].js';
+            if (!handlerFile) {
+              if (pathname.startsWith('/api/admin/') || pathname === '/api/admin-login') {
+                handlerFile = './api/admin.js';
+              } else if (pathname.startsWith('/api/customer/')) {
+                handlerFile = './api/customer.js';
+              }
             }
             if (!handlerFile) {
               return next();

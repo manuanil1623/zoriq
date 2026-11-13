@@ -5,11 +5,19 @@
   "rewrites": [
     {
       "source": "/api/admin-login",
-      "destination": "/api/admin/login"
+      "destination": "/api/admin?route=login"
     },
     {
       "source": "/api/admin/:route*",
-      "destination": "/api/admin/[route]"
+      "destination": "/api/admin?route=:route*"
+    },
+    {
+      "source": "/api/customer/auth",
+      "destination": "/api/customer"
+    },
+    {
+      "source": "/api/customer/:route*",
+      "destination": "/api/customer?route=:route*"
     },
     {
       "source": "/((?!api/.*).*)",

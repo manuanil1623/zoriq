@@ -1,11 +1,11 @@
-import { getSupabaseAdmin } from '../_lib/supabaseAdmin.js';
+import { getSupabaseAdmin } from './_lib/supabaseAdmin.js';
 import {
   setCorsHeaders,
   parseJsonBody,
   sendJson,
   signCustomerToken,
   decodeAndVerifyCustomerToken
-} from '../_lib/auth.js';
+} from './_lib/auth.js';
 
 export default async function handler(req, res) {
   setCorsHeaders(res);
