@@ -60,6 +60,8 @@ export function mapSettingsFromDb(row) {
     storeName: row.storeName ?? row.store_name ?? 'ZORIQ',
     tagline: row.tagline ?? 'Premium Direct-to-Consumer Electronics & Lifestyle',
     logoUrl: row.logoUrl ?? row.logo_url ?? '/zoriq-logo.jpg',
+    heroImage: row.heroImage ?? row.hero_image ?? row.socialLinks?.heroImage ?? row.social_links?.heroImage ?? '',
+    collectionImages: row.collectionImages ?? row.collection_images ?? row.socialLinks?.collectionImages ?? row.social_links?.collectionImages ?? {},
     contactPhone: row.contactPhone ?? row.contact_phone ?? '+91 98765 43210',
     contactEmail: row.contactEmail ?? row.contact_email ?? 'help@zoriq.in',
     address: row.address ?? '12th Floor, Orion Tech Park, MG Road, Bengaluru, Karnataka 560001',

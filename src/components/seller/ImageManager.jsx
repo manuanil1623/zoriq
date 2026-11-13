@@ -4,28 +4,28 @@ import { Upload, Trash2, ArrowRight, RefreshCw, Sparkles } from 'lucide-react';
 
 export const CURATED_HERO_PRESETS = [
   {
-    id: 'japandi-wood',
-    name: 'Japandi Warm Wood & Sunlight',
-    url: 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=1920&q=80',
-    thumb: 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=300&q=80'
+    id: 'wabi-sabi-arches',
+    name: 'Wabi-Sabi Warm Arches',
+    url: 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1920&q=80',
+    thumb: 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=300&q=80'
   },
   {
-    id: 'ceramic-kitchen',
-    name: 'Artisan Ceramics & Warm Linen',
-    url: 'https://images.unsplash.com/photo-1507089947368-19c1da9775ae?auto=format&fit=crop&w=1920&q=80',
-    thumb: 'https://images.unsplash.com/photo-1507089947368-19c1da9775ae?auto=format&fit=crop&w=300&q=80'
+    id: 'sunlight-shadows',
+    name: 'Sunlight & Neutral Shadows',
+    url: 'https://images.unsplash.com/photo-1507652313519-d4e9174996dd?auto=format&fit=crop&w=1920&q=80',
+    thumb: 'https://images.unsplash.com/photo-1507652313519-d4e9174996dd?auto=format&fit=crop&w=300&q=80'
   },
   {
-    id: 'minimal-shelf',
-    name: 'Open Oak Shelf & Glassware',
-    url: 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=1920&q=80',
-    thumb: 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=300&q=80'
+    id: 'calm-interior',
+    name: 'Calm Minimalist Interior',
+    url: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1920&q=80',
+    thumb: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=300&q=80'
   },
   {
-    id: 'modern-stone',
-    name: 'Modern Beige Counter & Botanicals',
-    url: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1920&q=80',
-    thumb: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=300&q=80'
+    id: 'warm-stone',
+    name: 'Warm Architectural Stone',
+    url: 'https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&w=1920&q=80',
+    thumb: 'https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&w=300&q=80'
   }
 ];
 

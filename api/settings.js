@@ -17,6 +17,8 @@ function mapDbToPublicSettings(row) {
     storeName: row.store_name ?? 'ZORIQ',
     tagline: row.tagline ?? '',
     logoUrl: row.logo_url ?? '/zoriq-logo.jpg',
+    heroImage: row.hero_image ?? (typeof row.social_links === 'object' ? row.social_links?.heroImage : '') ?? '',
+    collectionImages: row.collection_images ?? (typeof row.social_links === 'object' ? row.social_links?.collectionImages : {}) ?? {},
     contactPhone: row.contact_phone ?? '',
     contactEmail: row.contact_email ?? '',
     address: row.address ?? '',
@@ -240,6 +242,24 @@ export default async function handler(req, res) {
       if (payload.socialLinks !== undefined) updateData.social_links = payload.socialLinks;
       if (payload.footerText !== undefined) updateData.footer_text = String(payload.footerText).trim();
       if (payload.announcement !== undefined) updateData.announcement = String(payload.announcement).trim();
+
+      // Storefront visual images (synced across all devices via JSONB)
+      if (payload.heroImage !== undefined || payload.collectionImages !== undefined) {
+        let existingSocial = currentData?.social_links;
+        if (typeof existingSocial === 'string') {
+          try { existingSocial = JSON.parse(existingSocial); } catch {}
+        }
+        if (typeof existingSocial !== 'object' || !existingSocial) {
+          existingSocial = {};
+        }
+        const updatedSocial = {
+          ...existingSocial,
+          ...(updateData.social_links || {}),
+        };
+        if (payload.heroImage !== undefined) updatedSocial.heroImage = payload.heroImage;
+        if (payload.collectionImages !== undefined) updatedSocial.collectionImages = payload.collectionImages;
+        updateData.social_links = updatedSocial;
+      }
 
       if (payload.freeShippingThreshold !== undefined) updateData.free_shipping_threshold = Number(payload.freeShippingThreshold);
       if (payload.standardShippingFee !== undefined) updateData.standard_shipping_fee = Number(payload.standardShippingFee);

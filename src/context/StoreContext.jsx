@@ -110,49 +110,24 @@ export function StoreProvider({ children }) {
     };
   });
 
-  const updateHeroImage = (dataUrl) => {
-    setStoreImages((prev) => {
-      const next = { ...prev, hero: dataUrl || '' };
-      try {
-        localStorage.setItem('zoriq_images_v1', JSON.stringify(next));
-        localStorage.setItem('zq_img', JSON.stringify(next));
-      } catch (e) {
-        console.error('Failed to save to localStorage:', e);
-      }
-      return next;
-    });
-  };
-
-  const removeHeroImage = () => {
-    updateHeroImage('');
-  };
-
-  const updateCollectionImage = (colName, dataUrl) => {
-    setStoreImages((prev) => {
-      const nextCols = { ...(prev.cols || {}), [colName]: dataUrl };
-      const next = { ...prev, cols: nextCols };
-      try {
-        localStorage.setItem('zoriq_images_v1', JSON.stringify(next));
-        localStorage.setItem('zq_img', JSON.stringify(next));
-      } catch (e) {
-        console.error('Failed to save to localStorage:', e);
-      }
-      return next;
-    });
-  };
-
-  const removeCollectionImage = (colName) => {
-    setStoreImages((prev) => {
-      const nextCols = { ...(prev.cols || {}) };
-      delete nextCols[colName];
-      const next = { ...prev, cols: nextCols };
-      try {
-        localStorage.setItem('zoriq_images_v1', JSON.stringify(next));
-        localStorage.setItem('zq_img', JSON.stringify(next));
-      } catch (e) {}
-      return next;
-    });
-  };
+  // Keep storeImages synced whenever sellerSettings updates from Supabase Realtime / initial fetch
+  useEffect(() => {
+    if (sellerSettings?.heroImage !== undefined || sellerSettings?.collectionImages !== undefined) {
+      setStoreImages((prev) => {
+        const nextHero = sellerSettings.heroImage !== undefined ? sellerSettings.heroImage : prev.hero;
+        const nextCols = {
+          ...(prev.cols || {}),
+          ...(sellerSettings.collectionImages || {}),
+        };
+        const next = { hero: nextHero, cols: nextCols };
+        try {
+          localStorage.setItem('zoriq_images_v1', JSON.stringify(next));
+          localStorage.setItem('zq_img', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+    }
+  }, [sellerSettings?.heroImage, sellerSettings?.collectionImages]);
 
   // 4. Active Applied Coupon
   const [coupon, setCoupon] = useState(null);
@@ -882,6 +857,106 @@ export function StoreProvider({ children }) {
 
   const updateSellerSettings = async (newSettings) => {
     return updateSettingsSection('all', newSettings);
+  };
+
+  // Cloud-synced Storefront Image Management (Syncs across all devices)
+  const updateHeroImage = async (dataUrl) => {
+    // 1. Immediate local update
+    setStoreImages((prev) => {
+      const next = { ...prev, hero: dataUrl || '' };
+      try {
+        localStorage.setItem('zoriq_images_v1', JSON.stringify(next));
+        localStorage.setItem('zq_img', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+
+    setSellerSettings((prev) => ({
+      ...prev,
+      heroImage: dataUrl || '',
+    }));
+
+    // 2. Sync to Supabase cloud settings so all devices and visitors see it
+    try {
+      if (adminToken) {
+        await updateSettingsSection('images', {
+          ...sellerSettings,
+          heroImage: dataUrl || '',
+        });
+      }
+    } catch (err) {
+      console.warn('Hero image saved locally, cloud sync notice:', err);
+    }
+  };
+
+  const removeHeroImage = async () => {
+    await updateHeroImage('');
+  };
+
+  const updateCollectionImage = async (colName, dataUrl) => {
+    const updatedCols = {
+      ...(storeImages.cols || {}),
+      ...(sellerSettings.collectionImages || {}),
+      [colName]: dataUrl,
+    };
+
+    setStoreImages((prev) => {
+      const next = { ...prev, cols: updatedCols };
+      try {
+        localStorage.setItem('zoriq_images_v1', JSON.stringify(next));
+        localStorage.setItem('zq_img', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+
+    setSellerSettings((prev) => ({
+      ...prev,
+      collectionImages: updatedCols,
+    }));
+
+    try {
+      if (adminToken) {
+        await updateSettingsSection('images', {
+          ...sellerSettings,
+          collectionImages: updatedCols,
+        });
+      }
+    } catch (err) {
+      console.warn('Collection image saved locally, cloud sync notice:', err);
+    }
+  };
+
+  const removeCollectionImage = async (colName) => {
+    const updatedCols = {
+      ...(storeImages.cols || {}),
+      ...(sellerSettings.collectionImages || {}),
+    };
+    delete updatedCols[colName];
+
+    setStoreImages((prev) => {
+      const nextCols = { ...(prev.cols || {}) };
+      delete nextCols[colName];
+      const next = { ...prev, cols: nextCols };
+      try {
+        localStorage.setItem('zoriq_images_v1', JSON.stringify(next));
+        localStorage.setItem('zq_img', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+
+    setSellerSettings((prev) => ({
+      ...prev,
+      collectionImages: updatedCols,
+    }));
+
+    try {
+      if (adminToken) {
+        await updateSettingsSection('images', {
+          ...sellerSettings,
+          collectionImages: updatedCols,
+        });
+      }
+    } catch (err) {}
   };
 
   const reloadLatestSettings = async () => {
