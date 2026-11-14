@@ -41,7 +41,17 @@ const PAGES = {
         <p>We are always happy to hear from you. Whether you have questions about an order or a product, reach out directly:</p>
         <div className="mt-4 space-y-2 text-sm text-[var(--ink2)]">
           <p><b>Email:</b> support@zoriq.in</p>
-          <p><b>WhatsApp:</b> +91 98765 43210</p>
+          <p>
+            <b>Instagram:</b>{' '}
+            <a
+              href="https://www.instagram.com/zoriq7"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[#0b6e4f] font-semibold underline"
+            >
+              @zoriq7
+            </a>
+          </p>
           <p><b>Hours:</b> Monday – Saturday, 9:00 AM – 7:00 PM IST</p>
         </div>
       </>
@@ -73,7 +83,7 @@ const PAGES = {
         </p>
         <ul className="mt-3 space-y-2 list-disc list-inside text-sm text-[var(--ink2)]">
           <li>7-day hassle-free replacement guarantee.</li>
-          <li>Simply send an unboxing photo or video to our WhatsApp support.</li>
+          <li>Simply send an unboxing photo or video to our Instagram support @zoriq7 or email.</li>
           <li>We will dispatch a brand-new replacement at zero extra cost.</li>
         </ul>
       </>

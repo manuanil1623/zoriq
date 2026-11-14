@@ -12,6 +12,24 @@ import {
   ArrowRight
 } from 'lucide-react';
 
+function InstagramIcon({ className = 'w-6 h-6' }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+    </svg>
+  );
+}
+
 export const CURATED_DISCOVERY_CIRCLES = [
   {
     title: 'New In',
@@ -172,8 +190,11 @@ export default function CustomerStorefront() {
         <div className="c">
           <div className="eyebrow">Everyday store</div>
           <h1>
-            Useful things for <em>home and kitchen</em>
+            Everything you need, <em>curated for you.</em>
           </h1>
+          <p className="sub">
+            Your all-in-one store, minus the chaos.
+          </p>
           <div className="btns">
             <a
               href="#shop"
@@ -551,12 +572,12 @@ export default function CustomerStorefront() {
             <div className="it">
               <HelpCircle className="i" />
               <b>Questions welcome</b>
-              <span>Tap chat anytime for care instructions and product advice.</span>
+              <span>Tap chat or DM @zoriq7 anytime for product advice and order questions.</span>
             </div>
             <div className="it">
               <GridIcon className="i" />
               <b>Curated collections</b>
-              <span>Everyday home and kitchen objects crafted for mindful living.</span>
+              <span>Everything you need, curated for you. Minus the chaos.</span>
             </div>
           </div>
         </div>
@@ -578,7 +599,7 @@ export default function CustomerStorefront() {
                 zoriq
               </a>
               <p className="tag">
-                {sellerSettings?.tagline || 'Useful things for home and kitchen.'}
+                {sellerSettings?.tagline || 'Everything you need, curated for you. Your all-in-one store, minus the chaos.'}
               </p>
             </div>
 
@@ -650,16 +671,16 @@ export default function CustomerStorefront() {
         </div>
       </footer>
 
-      {/* 8. FLOATING WHATSAPP / CHAT BUTTON */}
+      {/* 8. FLOATING INSTAGRAM CHAT BUTTON */}
       <a
-        href={`https://wa.me/${supportWhatsapp}?text=Hi%20zoriq%2C%20I%20have%20a%20question%20about%20your%20products.`}
+        href="https://www.instagram.com/zoriq7"
         target="_blank"
         rel="noopener noreferrer"
-        className="chat"
-        title="Chat with us on WhatsApp"
-        aria-label="Chat with us"
+        className="chat ig-chat"
+        title="Chat / Message us on Instagram @zoriq7"
+        aria-label="Chat with us on Instagram @zoriq7"
       >
-        <MessageCircle className="i" />
+        <InstagramIcon className="i" />
       </a>
     </div>
   );
