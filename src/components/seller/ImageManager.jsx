@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { useStore } from '../../context/StoreContext';
-import { Upload, Trash2, ArrowRight, RefreshCw, Sparkles } from 'lucide-react';
+import { Upload, Trash2, ArrowRight, RefreshCw, Sparkles, Plus, Folder, Check } from 'lucide-react';
+import CollectionOrganizerModal from './CollectionOrganizerModal';
 
 export const CURATED_HERO_PRESETS = [
   {
@@ -36,6 +37,8 @@ export default function ImageManager() {
     removeHeroImage,
     updateCollectionImage,
     removeCollectionImage,
+    addCollection,
+    deleteCollection,
     sellerSettings,
     products,
     collections,
@@ -48,6 +51,10 @@ export default function ImageManager() {
   const [activeUploadCol, setActiveUploadCol] = useState(null);
   const [isUploadingHero, setIsUploadingHero] = useState(false);
   const [uploadingColName, setUploadingColName] = useState(null);
+  const [organizingCol, setOrganizingCol] = useState(null);
+  const [newColName, setNewColName] = useState('');
+  const [confirmDeleteCol, setConfirmDeleteCol] = useState(null);
+  const [isAddingCol, setIsAddingCol] = useState(false);
 
   // Use dynamic collections from store
   const collectionsList = collections || [];
@@ -58,6 +65,31 @@ export default function ImageManager() {
   // Current collection image getter
   const getColImg = (col) => {
     return storeImages?.cols?.[col] || sellerSettings?.collectionImages?.[col] || '';
+  };
+
+  const handleAddCol = async (e) => {
+    e?.preventDefault();
+    const clean = newColName.trim();
+    if (!clean) return;
+    setIsAddingCol(true);
+    try {
+      await addCollection(clean);
+      setNewColName('');
+    } finally {
+      setIsAddingCol(false);
+    }
+  };
+
+  const handleDeleteCol = async (colName) => {
+    if (confirmDeleteCol !== colName) {
+      setConfirmDeleteCol(colName);
+      setTimeout(() => {
+        setConfirmDeleteCol((prev) => (prev === colName ? null : prev));
+      }, 4000);
+      return;
+    }
+    setConfirmDeleteCol(null);
+    await deleteCollection(colName);
   };
 
   // Image shrink / compression helper using canvas
@@ -245,15 +277,56 @@ export default function ImageManager() {
 
       {/* 2. Collection pictures Card */}
       <div className="acard">
-        <h4>Collection pictures</h4>
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h4 className="m-0">Collection pictures & organize</h4>
+            <small className="text-[#6b8579] text-xs">
+              Add collections, update photos, or organize products into each collection.
+            </small>
+          </div>
+          <span className="text-xs px-2.5 py-1 rounded-full bg-[#eef7f2] text-[#0b6e4f] font-semibold flex-none">
+            {collectionsList.length} collections
+          </span>
+        </div>
+
+        {/* Quick Add Collection Input */}
+        <form onSubmit={handleAddCol} className="flex items-center gap-2 mb-4 p-2.5 bg-[#fcfbf8] border border-[#edf6f2] rounded-xl">
+          <input
+            type="text"
+            placeholder="Add collection (e.g. Wooden Serveware)..."
+            value={newColName}
+            onChange={(e) => setNewColName(e.target.value)}
+            className="flex-1 px-3 py-2 text-xs sm:text-sm bg-white border border-[#cfe8dd] rounded-lg focus:outline-none focus:border-[#0b6e4f]"
+          />
+          <button
+            type="submit"
+            className="ab sm flex-none"
+            disabled={isAddingCol || !newColName.trim()}
+          >
+            <Plus className="w-3.5 h-3.5 mr-1" />
+            <span>{isAddingCol ? 'Adding...' : 'Add collection'}</span>
+          </button>
+        </form>
+
         <div className="divide-y divide-[#edf6f2]">
           {collectionsList.map((col) => {
             const customPic = getColImg(col);
             const isUploadingThis = uploadingColName === col;
+            const isConfirmingDelete = confirmDeleteCol === col;
+            const count = (products || []).filter(
+              (p) => (p.category || '').toLowerCase() === col.toLowerCase()
+            ).length;
 
             return (
-              <div key={col} className="prow">
-                <div className="pt">
+              <div key={col} className="prow flex-wrap sm:flex-nowrap gap-3 py-3">
+                <div
+                  className="pt cursor-pointer relative group flex-none"
+                  title="Click to change photo"
+                  onClick={() => {
+                    setActiveUploadCol(col);
+                    setTimeout(() => colInputRef.current?.click(), 50);
+                  }}
+                >
                   {customPic ? (
                     <img src={customPic} alt={col} />
                   ) : (
@@ -261,14 +334,35 @@ export default function ImageManager() {
                       {col.slice(0, 2).toUpperCase()}
                     </div>
                   )}
+                  <div className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-xl">
+                    <Upload className="w-4 h-4" />
+                  </div>
                 </div>
 
-                <div className="pm">
-                  <b>{col}</b>
-                  <small>{customPic ? 'Custom picture' : 'Default picture'}</small>
+                <div className="pm min-w-[140px]">
+                  <b className="text-sm font-semibold text-[#0f2a21]">{col}</b>
+                  <div className="flex items-center gap-2 text-[11px] text-[#6b8579]">
+                    <span className="font-semibold text-[#0b6e4f]">
+                      {count} product{count === 1 ? '' : 's'}
+                    </span>
+                    <span>·</span>
+                    <span>{customPic ? 'Custom picture' : 'Default picture'}</span>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap justify-end ml-auto">
+                  {/* Organize Products Button */}
+                  <button
+                    type="button"
+                    className="ab gh2 sm"
+                    onClick={() => setOrganizingCol(col)}
+                    title={`Organize products in "${col}"`}
+                  >
+                    <Folder className="w-3.5 h-3.5 mr-1 text-[#0b6e4f]" />
+                    <span>Organize ({count})</span>
+                  </button>
+
+                  {/* Change Photo Button */}
                   <button
                     type="button"
                     className="ab gh2 sm"
@@ -280,18 +374,34 @@ export default function ImageManager() {
                   >
                     {isUploadingThis ? (
                       <RefreshCw className="w-3.5 h-3.5 mr-1 animate-spin" />
-                    ) : null}
+                    ) : (
+                      <Upload className="w-3.5 h-3.5 mr-1" />
+                    )}
                     <span>{isUploadingThis ? 'Saving...' : 'Change'}</span>
                   </button>
+
+                  {/* Reset Photo */}
                   {customPic && (
                     <button
                       type="button"
-                      className="ab gh2 sm text-rose-600"
+                      className="ab gh2 sm text-neutral-600"
                       onClick={() => handleResetCol(col)}
+                      title="Reset to default picture"
                     >
                       Reset
                     </button>
                   )}
+
+                  {/* Delete Collection Button */}
+                  <button
+                    type="button"
+                    className={`ab sm ${isConfirmingDelete ? 'rd' : 'gh2 text-rose-600'}`}
+                    onClick={() => handleDeleteCol(col)}
+                    title="Delete collection"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-1" />
+                    <span>{isConfirmingDelete ? 'Sure?' : 'Delete'}</span>
+                  </button>
                 </div>
               </div>
             );
@@ -316,6 +426,14 @@ export default function ImageManager() {
           </button>
         </div>
       </div>
+
+      {/* Organize Products Modal */}
+      {organizingCol && (
+        <CollectionOrganizerModal
+          collectionName={organizingCol}
+          onClose={() => setOrganizingCol(null)}
+        />
+      )}
     </div>
   );
 }

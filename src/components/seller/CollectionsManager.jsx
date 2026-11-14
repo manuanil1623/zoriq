@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useStore } from '../../context/StoreContext';
-import { Plus, Trash2, Save, Image as ImageIcon } from 'lucide-react';
+import { Plus, Trash2, Save, Image as ImageIcon, Folder, Upload, RefreshCw } from 'lucide-react';
+import CollectionOrganizerModal from './CollectionOrganizerModal';
 
 export default function CollectionsManager() {
   const {
@@ -9,6 +10,7 @@ export default function CollectionsManager() {
     addCollection,
     renameCollection,
     deleteCollection,
+    updateCollectionImage,
     storeImages,
     sellerSettings,
     setSellerActiveTab,
@@ -19,6 +21,10 @@ export default function CollectionsManager() {
   const [editedNames, setEditedNames] = useState({});
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [organizingCol, setOrganizingCol] = useState(null);
+  const [activeUploadCol, setActiveUploadCol] = useState(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const colInputRef = useRef(null);
 
   // Initialize editedNames map when collections list updates
   useEffect(() => {
@@ -53,6 +59,56 @@ export default function CollectionsManager() {
     await renameCollection(originalName, currentVal);
   };
 
+  const shrinkImage = (file, maxWidth, callback) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        callback(dataUrl);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleColUpload = (e) => {
+    const file = e.target.files?.[0];
+    const colName = activeUploadCol;
+    if (!file || !colName) {
+      if (e.target) e.target.value = '';
+      return;
+    }
+
+    setIsUploadingPhoto(true);
+    shrinkImage(file, 600, (dataUrl) => {
+      try {
+        updateCollectionImage(colName, dataUrl);
+        addToast(`Picture for "${colName}" updated!`, 'success');
+      } catch (err) {
+        console.error(err);
+        addToast('Failed to update collection picture.', 'error');
+      } finally {
+        setIsUploadingPhoto(false);
+        setActiveUploadCol(null);
+        if (e.target) e.target.value = '';
+      }
+    });
+  };
+
   const handleDelete = async (colName) => {
     if (confirmDelete !== colName) {
       setConfirmDelete(colName);
@@ -67,6 +123,13 @@ export default function CollectionsManager() {
 
   return (
     <div className="space-y-4">
+      <input
+        ref={colInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleColUpload}
+      />
       {/* 1. Add Collection Card */}
       <div className="acard">
         <h4>Add collection</h4>
@@ -113,9 +176,16 @@ export default function CollectionsManager() {
             const isConfirmingDelete = confirmDelete === col;
 
             return (
-              <div key={col} className="prow">
+              <div key={col} className="prow flex-wrap sm:flex-nowrap gap-3 py-3">
                 {/* Visual Thumbnail */}
-                <div className="pt">
+                <div
+                  className="pt cursor-pointer relative group flex-none"
+                  title="Click to change photo"
+                  onClick={() => {
+                    setActiveUploadCol(col);
+                    setTimeout(() => colInputRef.current?.click(), 50);
+                  }}
+                >
                   {customPic ? (
                     <img src={customPic} alt={col} />
                   ) : (
@@ -123,10 +193,13 @@ export default function CollectionsManager() {
                       {col.slice(0, 2).toUpperCase()}
                     </div>
                   )}
+                  <div className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-xl">
+                    <Upload className="w-4 h-4" />
+                  </div>
                 </div>
 
                 {/* Editable Name & Product Count */}
-                <div className="pm">
+                <div className="pm min-w-[140px]">
                   <input
                     type="text"
                     value={currentInputVal}
@@ -145,12 +218,40 @@ export default function CollectionsManager() {
                     placeholder="Collection name"
                   />
                   <small className="text-[#6b8579]">
-                    {productCount} product{productCount === 1 ? '' : 's'} in this collection
+                    <span className="font-semibold text-[#0b6e4f]">{productCount}</span> product{productCount === 1 ? '' : 's'} assigned
                   </small>
                 </div>
 
-                {/* Actions: Save & Delete */}
-                <div className="flex items-center gap-1.5 flex-none">
+                {/* Actions: Organize, Photo, Save & Delete */}
+                <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap justify-end ml-auto">
+                  <button
+                    type="button"
+                    className="ab gh2 sm"
+                    onClick={() => setOrganizingCol(col)}
+                    title={`Organize products in "${col}"`}
+                  >
+                    <Folder className="w-3.5 h-3.5 mr-1 text-[#0b6e4f]" />
+                    <span>Organize ({productCount})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="ab gh2 sm"
+                    disabled={isUploadingPhoto && activeUploadCol === col}
+                    onClick={() => {
+                      setActiveUploadCol(col);
+                      setTimeout(() => colInputRef.current?.click(), 50);
+                    }}
+                    title="Change collection photo"
+                  >
+                    {isUploadingPhoto && activeUploadCol === col ? (
+                      <RefreshCw className="w-3.5 h-3.5 mr-1 animate-spin" />
+                    ) : (
+                      <Upload className="w-3.5 h-3.5 mr-1" />
+                    )}
+                    <span>Photo</span>
+                  </button>
+
                   <button
                     type="button"
                     className={`ab sm ${hasChanged ? '' : 'gh2 opacity-60'}`}
@@ -177,6 +278,14 @@ export default function CollectionsManager() {
           })}
         </div>
       </div>
+
+      {/* Organize Products Modal */}
+      {organizingCol && (
+        <CollectionOrganizerModal
+          collectionName={organizingCol}
+          onClose={() => setOrganizingCol(null)}
+        />
+      )}
     </div>
   );
 }

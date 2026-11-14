@@ -1106,6 +1106,16 @@ export function StoreProvider({ children }) {
     }
   };
 
+  const setProductCollection = async (productId, targetCollection) => {
+    try {
+      await updateProduct(productId, { category: targetCollection });
+      addToast(`Product moved to "${targetCollection}"`, 'success');
+    } catch (err) {
+      console.error('Failed to set product collection:', err);
+      addToast('Failed to move product to collection.', 'error');
+    }
+  };
+
   const reloadLatestSettings = async () => {
     try {
       if (conflictSettings) {
@@ -1404,6 +1414,7 @@ export function StoreProvider({ children }) {
         addCollection,
         renameCollection,
         deleteCollection,
+        setProductCollection,
         sortBy,
         setSortBy,
 
