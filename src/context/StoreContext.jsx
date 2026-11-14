@@ -115,10 +115,7 @@ export function StoreProvider({ children }) {
     if (sellerSettings?.heroImage !== undefined || sellerSettings?.collectionImages !== undefined) {
       setStoreImages((prev) => {
         const nextHero = sellerSettings.heroImage !== undefined ? sellerSettings.heroImage : prev.hero;
-        const nextCols = {
-          ...(prev.cols || {}),
-          ...(sellerSettings.collectionImages || {}),
-        };
+        const nextCols = sellerSettings.collectionImages || {};
         const next = { hero: nextHero, cols: nextCols };
         try {
           localStorage.setItem('zoriq_images_v1', JSON.stringify(next));
@@ -420,14 +417,9 @@ export function StoreProvider({ children }) {
       if (payload.new) {
         const mapped = mapSettingsFromDb(payload.new);
         if (mapped) {
-          setSellerSettings((prev) => {
-            if (mapped.version > (prev.version || 1)) {
-              setConflictSettings(mapped);
-              setHasSettingsConflict(true);
-              return mapped;
-            }
-            return mapped;
-          });
+          setSellerSettings(mapped);
+          setHasSettingsConflict(false);
+          setConflictSettings(null);
         }
       }
     };
@@ -823,13 +815,13 @@ export function StoreProvider({ children }) {
     }
   };
 
-  // Save settings section by section with optimistic locking
-  const updateSettingsSection = async (section, sectionData) => {
+  // Save settings section by section with optimistic locking (force = true bypasses version check)
+  const updateSettingsSection = async (section, sectionData, force = false) => {
     try {
       const res = await adminUpdateSettingsSection(
         section,
         sectionData,
-        sellerSettings.version,
+        force ? null : sellerSettings.version,
         adminToken
       );
 
@@ -843,6 +835,20 @@ export function StoreProvider({ children }) {
     } catch (err) {
       console.error(`Save section "${section}" error:`, err);
       if (err.status === 409 || err.conflict) {
+        // If conflict occurs for collections or images, retry automatically with force=true
+        if (section === 'collections' || section === 'images' || force) {
+          try {
+            const retryRes = await adminUpdateSettingsSection(section, sectionData, null, adminToken);
+            if (retryRes && retryRes.settings) {
+              setSellerSettings(retryRes.settings);
+              setHasSettingsConflict(false);
+              setConflictSettings(null);
+            }
+            return { success: true, settings: retryRes.settings };
+          } catch (retryErr) {
+            console.error('Retry save error:', retryErr);
+          }
+        }
         setHasSettingsConflict(true);
         if (err.latestSettings) {
           setConflictSettings(err.latestSettings);
@@ -882,7 +888,7 @@ export function StoreProvider({ children }) {
         await updateSettingsSection('images', {
           ...sellerSettings,
           heroImage: dataUrl || '',
-        });
+        }, true);
       }
     } catch (err) {
       console.warn('Hero image saved locally, cloud sync notice:', err);
@@ -895,7 +901,6 @@ export function StoreProvider({ children }) {
 
   const updateCollectionImage = async (colName, dataUrl) => {
     const updatedCols = {
-      ...(storeImages.cols || {}),
       ...(sellerSettings.collectionImages || {}),
       [colName]: dataUrl,
     };
@@ -919,7 +924,7 @@ export function StoreProvider({ children }) {
         await updateSettingsSection('images', {
           ...sellerSettings,
           collectionImages: updatedCols,
-        });
+        }, true);
       }
     } catch (err) {
       console.warn('Collection image saved locally, cloud sync notice:', err);
@@ -928,7 +933,6 @@ export function StoreProvider({ children }) {
 
   const removeCollectionImage = async (colName) => {
     const updatedCols = {
-      ...(storeImages.cols || {}),
       ...(sellerSettings.collectionImages || {}),
     };
     delete updatedCols[colName];
@@ -954,33 +958,24 @@ export function StoreProvider({ children }) {
         await updateSettingsSection('images', {
           ...sellerSettings,
           collectionImages: updatedCols,
-        });
+        }, true);
       }
     } catch (err) {}
   };
 
   // Curated & Dynamic Collections Management
   const collections = useMemo(() => {
-    const list = Array.isArray(sellerSettings?.collections) && sellerSettings.collections.length > 0
-      ? [...sellerSettings.collections]
-      : [
-          'Glassware',
-          'Kitchen Finds',
-          'Bottles & Lunch Boxes',
-          'Steel Essentials',
-          'Lunch Boxes'
-        ];
-    // Ensure any product category currently in catalog is retained
-    products.forEach((p) => {
-      if (p.category) {
-        const clean = p.category.charAt(0).toUpperCase() + p.category.slice(1);
-        if (!list.some((c) => c.toLowerCase() === clean.toLowerCase())) {
-          list.push(clean);
-        }
-      }
-    });
-    return list;
-  }, [sellerSettings?.collections, products]);
+    if (Array.isArray(sellerSettings?.collections)) {
+      return sellerSettings.collections;
+    }
+    return [
+      'Glassware',
+      'Kitchen Finds',
+      'Bottles & Lunch Boxes',
+      'Steel Essentials',
+      'Lunch Boxes'
+    ];
+  }, [sellerSettings?.collections]);
 
   const addCollection = async (name) => {
     const clean = (name || '').trim();
@@ -1000,7 +995,7 @@ export function StoreProvider({ children }) {
     setSellerSettings(updated);
     try {
       if (adminToken) {
-        await updateSettingsSection('collections', updated);
+        await updateSettingsSection('collections', updated, true);
       }
       addToast(`Collection "${clean}" added!`, 'success');
     } catch (err) {
@@ -1050,7 +1045,7 @@ export function StoreProvider({ children }) {
 
     try {
       if (adminToken) {
-        await updateSettingsSection('collections', updated);
+        await updateSettingsSection('collections', updated, true);
         for (const prod of affectedProducts) {
           await updateProduct(prod.id, { category: cleanNew });
         }
@@ -1063,11 +1058,6 @@ export function StoreProvider({ children }) {
   };
 
   const deleteCollection = async (name) => {
-    if (collections.length <= 1) {
-      addToast('Store must have at least one collection.', 'warning');
-      return;
-    }
-
     const nextCols = collections.filter((c) => c.toLowerCase() !== name.toLowerCase());
     const updatedCollectionImages = { ...(sellerSettings?.collectionImages || {}) };
     delete updatedCollectionImages[name];
@@ -1078,6 +1068,18 @@ export function StoreProvider({ children }) {
       collectionImages: updatedCollectionImages,
     };
     setSellerSettings(updated);
+
+    // Update local storeImages cache directly
+    setStoreImages((prev) => {
+      const nextColsMap = { ...(prev.cols || {}) };
+      delete nextColsMap[name];
+      const next = { ...prev, cols: nextColsMap };
+      try {
+        localStorage.setItem('zoriq_images_v1', JSON.stringify(next));
+        localStorage.setItem('zq_img', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
 
     // Reassign products to 'General' so they aren't lost
     const affectedProducts = products.filter(
@@ -1094,12 +1096,12 @@ export function StoreProvider({ children }) {
 
     try {
       if (adminToken) {
-        await updateSettingsSection('collections', updated);
+        await updateSettingsSection('collections', updated, true);
         for (const prod of affectedProducts) {
           await updateProduct(prod.id, { category: 'General' });
         }
       }
-      addToast(`Collection "${name}" deleted. Products moved to General.`, 'info');
+      addToast(`Collection "${name}" deleted.`, 'info');
     } catch (err) {
       console.error('Failed to delete collection:', err);
       addToast('Deleted locally, error syncing to cloud.', 'error');

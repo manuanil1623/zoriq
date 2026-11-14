@@ -309,7 +309,15 @@ export default function ImageManager() {
         </form>
 
         <div className="divide-y divide-[#edf6f2]">
-          {collectionsList.map((col) => {
+          {collectionsList.length === 0 ? (
+            <div className="py-8 text-center text-[#6b8579] space-y-1.5">
+              <p className="text-sm font-semibold text-[#0f2a21]">No collections created yet</p>
+              <p className="text-xs">
+                Add a collection above, and it will appear here for photo uploads and product organization!
+              </p>
+            </div>
+          ) : (
+            collectionsList.map((col) => {
             const customPic = getColImg(col);
             const isUploadingThis = uploadingColName === col;
             const isConfirmingDelete = confirmDeleteCol === col;
@@ -405,7 +413,7 @@ export default function ImageManager() {
                 </div>
               </div>
             );
-          })}
+          }))}
         </div>
       </div>
 

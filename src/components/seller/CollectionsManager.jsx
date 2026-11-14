@@ -166,7 +166,18 @@ export default function CollectionsManager() {
         </div>
 
         <div className="divide-y divide-[#edf6f2] mt-2">
-          {(collections || []).map((col) => {
+          {(!collections || collections.length === 0) ? (
+            <div className="py-8 text-center text-[#6b8579] space-y-1.5">
+              <p className="text-sm font-semibold text-[#0f2a21]">No custom collections created yet</p>
+              <p className="text-xs">
+                The storefront is currently showcasing smart discovery highlights (New In, Bestsellers, Value Finds).
+              </p>
+              <p className="text-xs text-[#0b6e4f] font-medium">
+                Type a collection name above to add your first one anytime!
+              </p>
+            </div>
+          ) : (
+            collections.map((col) => {
             const productCount = products.filter(
               (p) => (p.category || '').toLowerCase() === col.toLowerCase()
             ).length;
@@ -275,7 +286,7 @@ export default function CollectionsManager() {
                 </div>
               </div>
             );
-          })}
+          }))}
         </div>
       </div>
 

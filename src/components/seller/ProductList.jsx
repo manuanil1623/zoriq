@@ -43,7 +43,7 @@ export default function ProductList() {
 
   const availableCollections = collections && collections.length > 0
     ? collections
-    : ['Glassware', 'Kitchen Finds', 'Bottles & Lunch Boxes', 'Steel Essentials', 'Lunch Boxes'];
+    : ['General'];
 
   const startAddNew = () => {
     setEditingId('new');

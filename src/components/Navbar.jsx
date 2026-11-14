@@ -158,24 +158,41 @@ export default function Navbar() {
               >
                 Shop
               </a>
-              <a
-                href="#shop"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleCategoryClick('Glassware');
-                }}
-              >
-                Glassware
-              </a>
-              <a
-                href="#shop"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleCategoryClick('Bestsellers');
-                }}
-              >
-                Bestsellers
-              </a>
+              {uniqueCategories.length > 0 ? (
+                uniqueCategories.slice(0, 2).map((cat) => (
+                  <a
+                    key={cat}
+                    href="#shop"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleCategoryClick(cat);
+                    }}
+                  >
+                    {cat}
+                  </a>
+                ))
+              ) : (
+                <>
+                  <a
+                    href="#bestsellers"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      document.getElementById('bestsellers')?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                  >
+                    Bestsellers
+                  </a>
+                  <a
+                    href="#new-arrivals"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      document.getElementById('new-arrivals')?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                  >
+                    Fresh finds
+                  </a>
+                </>
+              )}
               <button
                 type="button"
                 onClick={() => setActiveInfoPage('story')}

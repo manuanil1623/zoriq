@@ -51,6 +51,12 @@ export function mapProductFromDb(row) {
 
 export function mapSettingsFromDb(row) {
   if (!row) return null;
+  const rawCols = row.collections !== undefined
+    ? row.collections
+    : row.socialLinks?.collections !== undefined
+    ? row.socialLinks.collections
+    : row.social_links?.collections;
+
   return {
     id: row.id || 'default',
     version: Number(row.version) || 1,
@@ -62,13 +68,15 @@ export function mapSettingsFromDb(row) {
     logoUrl: row.logoUrl ?? row.logo_url ?? '/zoriq-logo.jpg',
     heroImage: row.heroImage ?? row.hero_image ?? row.socialLinks?.heroImage ?? row.social_links?.heroImage ?? '',
     collectionImages: row.collectionImages ?? row.collection_images ?? row.socialLinks?.collectionImages ?? row.social_links?.collectionImages ?? {},
-    collections: row.collections ?? row.socialLinks?.collections ?? row.social_links?.collections ?? [
-      'Glassware',
-      'Kitchen Finds',
-      'Bottles & Lunch Boxes',
-      'Steel Essentials',
-      'Lunch Boxes'
-    ],
+    collections: Array.isArray(rawCols)
+      ? rawCols
+      : [
+          'Glassware',
+          'Kitchen Finds',
+          'Bottles & Lunch Boxes',
+          'Steel Essentials',
+          'Lunch Boxes'
+        ],
     contactPhone: row.contactPhone ?? row.contact_phone ?? '+91 98765 43210',
     contactEmail: row.contactEmail ?? row.contact_email ?? 'help@zoriq.in',
     address: row.address ?? '12th Floor, Orion Tech Park, MG Road, Bengaluru, Karnataka 560001',

@@ -19,13 +19,17 @@ function mapDbToPublicSettings(row) {
     logoUrl: row.logo_url ?? '/zoriq-logo.jpg',
     heroImage: row.hero_image ?? (typeof row.social_links === 'object' ? row.social_links?.heroImage : '') ?? '',
     collectionImages: row.collection_images ?? (typeof row.social_links === 'object' ? row.social_links?.collectionImages : {}) ?? {},
-    collections: row.collections ?? (typeof row.social_links === 'object' ? row.social_links?.collections : null) ?? [
-      'Glassware',
-      'Kitchen Finds',
-      'Bottles & Lunch Boxes',
-      'Steel Essentials',
-      'Lunch Boxes'
-    ],
+    collections: Array.isArray(row.collections)
+      ? row.collections
+      : (typeof row.social_links === 'object' && Array.isArray(row.social_links?.collections))
+      ? row.social_links.collections
+      : [
+          'Glassware',
+          'Kitchen Finds',
+          'Bottles & Lunch Boxes',
+          'Steel Essentials',
+          'Lunch Boxes'
+        ],
     contactPhone: row.contact_phone ?? '',
     contactEmail: row.contact_email ?? '',
     address: row.address ?? '',

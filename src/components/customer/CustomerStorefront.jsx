@@ -12,6 +12,39 @@ import {
   ArrowRight
 } from 'lucide-react';
 
+export const CURATED_DISCOVERY_CIRCLES = [
+  {
+    title: 'New In',
+    subtitle: 'Fresh curated finds',
+    img: 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=400&q=80',
+    action: 'new-arrivals'
+  },
+  {
+    title: 'Bestsellers',
+    subtitle: 'Most loved pieces',
+    img: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=400&q=80',
+    action: 'bestsellers'
+  },
+  {
+    title: 'Daily Goods',
+    subtitle: 'Kitchen & Home staples',
+    img: 'https://images.unsplash.com/photo-1584269600464-37b1b58a9fe7?auto=format&fit=crop&w=400&q=80',
+    action: 'shop'
+  },
+  {
+    title: 'Under ₹499',
+    subtitle: 'Pocket-friendly finds',
+    img: 'https://images.unsplash.com/photo-1578749556568-bc2c40e68b61?auto=format&fit=crop&w=400&q=80',
+    action: 'under-499'
+  },
+  {
+    title: 'Our Story',
+    subtitle: 'Mindful design',
+    img: 'https://images.unsplash.com/photo-1507652313519-d4e9174996dd?auto=format&fit=crop&w=400&q=80',
+    action: 'story'
+  }
+];
+
 export default function CustomerStorefront() {
   const {
     products,
@@ -102,6 +135,19 @@ export default function CustomerStorefront() {
     document.getElementById('shop')?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const handleDiscoveryClick = (action) => {
+    if (action === 'new-arrivals') {
+      document.getElementById('new-arrivals')?.scrollIntoView({ behavior: 'smooth' });
+    } else if (action === 'bestsellers') {
+      document.getElementById('bestsellers')?.scrollIntoView({ behavior: 'smooth' });
+    } else if (action === 'story') {
+      setActiveInfoPage('story');
+    } else {
+      setSelectedCategory('all');
+      document.getElementById('shop')?.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   const supportWhatsapp = sellerSettings?.supportWhatsapp || '919876543210';
   const heroImage = storeImages?.hero || sellerSettings?.heroImage || '';
 
@@ -154,35 +200,57 @@ export default function CustomerStorefront() {
         </div>
       </section>
 
-      {/* 2. ROTATING CIRCULAR COLLECTIONS ROW */}
+      {/* 2. ROTATING CIRCULAR COLLECTIONS ROW OR CURATED DISCOVERIES */}
       <div id="collections" className="wrap">
-        <div className="cols">
-          {collectionsWithImages.map((col, idx) => {
-            const customColImg = storeImages?.cols?.[col.category] || storeImages?.cols?.[col.category?.toLowerCase()] || sellerSettings?.collectionImages?.[col.category];
-            const displayImg = customColImg || col.image;
+        {collectionsWithImages.length > 0 ? (
+          <div className="cols">
+            {collectionsWithImages.map((col, idx) => {
+              const customColImg = storeImages?.cols?.[col.category] || storeImages?.cols?.[col.category?.toLowerCase()] || sellerSettings?.collectionImages?.[col.category];
+              const displayImg = customColImg || col.image;
 
-            return (
-              <div
-                key={idx}
-                className="col"
-                onClick={() => handleCollectionSelect(col.category)}
-              >
-                <div className="ring">
-                  <div>
-                    {displayImg ? (
-                      <img src={displayImg} alt={col.category} />
-                    ) : (
-                      <div className="w-full h-full bg-[#f4f0e9] flex items-center justify-center text-xs font-semibold uppercase tracking-widest text-[var(--gold)]">
-                        {col.category.slice(0, 3)}
-                      </div>
-                    )}
+              return (
+                <div
+                  key={idx}
+                  className="col"
+                  onClick={() => handleCollectionSelect(col.category)}
+                >
+                  <div className="ring">
+                    <div>
+                      {displayImg ? (
+                        <img src={displayImg} alt={col.category} />
+                      ) : (
+                        <div className="w-full h-full bg-[#f4f0e9] flex items-center justify-center text-xs font-semibold uppercase tracking-widest text-[var(--gold)]">
+                          {col.category.slice(0, 3)}
+                        </div>
+                      )}
+                    </div>
                   </div>
+                  <span>{col.category}</span>
                 </div>
-                <span>{col.category}</span>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div>
+            <div className="cols">
+              {CURATED_DISCOVERY_CIRCLES.map((item, idx) => (
+                <div
+                  key={idx}
+                  className="col cursor-pointer"
+                  onClick={() => handleDiscoveryClick(item.action)}
+                  title={item.subtitle}
+                >
+                  <div className="ring">
+                    <div>
+                      <img src={item.img} alt={item.title} />
+                    </div>
+                  </div>
+                  <span>{item.title}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 3. NEW ARRIVALS RAIL */}
