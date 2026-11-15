@@ -387,10 +387,10 @@ export function StoreProvider({ children }) {
 
     loadInitialData();
 
-    // D. Refetch fallback every 15 seconds if realtime disconnects or misses events
+    // D. Refetch fallback every 5 seconds so cross-device edits sync quickly
     const pollInterval = setInterval(() => {
       fetchLatestPublicSettings();
-    }, 15000);
+    }, 5000);
 
     // E. Refetch immediately when browser tab becomes active
     const handleVisibilityChange = () => {
@@ -899,12 +899,10 @@ export function StoreProvider({ children }) {
 
     // 2. Sync to Supabase cloud settings so all devices and visitors see it
     try {
-      if (adminToken) {
-        await updateSettingsSection('images', {
-          ...sellerSettings,
-          heroImage: dataUrl || '',
-        }, true);
-      }
+      await updateSettingsSection('images', {
+        ...sellerSettings,
+        heroImage: dataUrl || '',
+      }, true);
     } catch (err) {
       console.warn('Hero image saved locally, cloud sync notice:', err);
     }
@@ -935,12 +933,10 @@ export function StoreProvider({ children }) {
     }));
 
     try {
-      if (adminToken) {
-        await updateSettingsSection('images', {
-          ...sellerSettings,
-          collectionImages: updatedCols,
-        }, true);
-      }
+      await updateSettingsSection('images', {
+        ...sellerSettings,
+        collectionImages: updatedCols,
+      }, true);
     } catch (err) {
       console.warn('Collection image saved locally, cloud sync notice:', err);
     }
@@ -969,12 +965,10 @@ export function StoreProvider({ children }) {
     }));
 
     try {
-      if (adminToken) {
-        await updateSettingsSection('images', {
-          ...sellerSettings,
-          collectionImages: updatedCols,
-        }, true);
-      }
+      await updateSettingsSection('images', {
+        ...sellerSettings,
+        collectionImages: updatedCols,
+      }, true);
     } catch (err) {}
   };
 
@@ -1009,13 +1003,11 @@ export function StoreProvider({ children }) {
     };
     setSellerSettings(updated);
     try {
-      if (adminToken) {
-        await updateSettingsSection('collections', updated, true);
-      }
+      await updateSettingsSection('collections', updated, true);
       addToast(`Collection "${clean}" added!`, 'success');
     } catch (err) {
       console.error('Failed to add collection:', err);
-      addToast('Failed to save collection to cloud.', 'error');
+      addToast('Failed to save collection to cloud: ' + (err.message || 'Check connection'), 'error');
     }
   };
 
@@ -1059,16 +1051,14 @@ export function StoreProvider({ children }) {
     );
 
     try {
-      if (adminToken) {
-        await updateSettingsSection('collections', updated, true);
-        for (const prod of affectedProducts) {
-          await updateProduct(prod.id, { category: cleanNew });
-        }
+      await updateSettingsSection('collections', updated, true);
+      for (const prod of affectedProducts) {
+        await updateProduct(prod.id, { category: cleanNew });
       }
       addToast(`Renamed to "${cleanNew}" across all products!`, 'success');
     } catch (err) {
       console.error('Failed to rename collection:', err);
-      addToast('Renamed locally, error syncing products.', 'error');
+      addToast('Renamed locally, error syncing products: ' + (err.message || ''), 'error');
     }
   };
 
@@ -1110,16 +1100,14 @@ export function StoreProvider({ children }) {
     );
 
     try {
-      if (adminToken) {
-        await updateSettingsSection('collections', updated, true);
-        for (const prod of affectedProducts) {
-          await updateProduct(prod.id, { category: 'General' });
-        }
+      await updateSettingsSection('collections', updated, true);
+      for (const prod of affectedProducts) {
+        await updateProduct(prod.id, { category: 'General' });
       }
       addToast(`Collection "${name}" deleted.`, 'info');
     } catch (err) {
       console.error('Failed to delete collection:', err);
-      addToast('Deleted locally, error syncing to cloud.', 'error');
+      addToast('Deleted locally, error syncing to cloud: ' + (err.message || ''), 'error');
     }
   };
 
