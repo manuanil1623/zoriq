@@ -271,26 +271,35 @@ export function StoreProvider({ children }) {
   useEffect(() => {
     let isMounted = true;
 
-    // Helper to fetch latest settings from Supabase
+    // Helper to fetch latest settings from Supabase or /api/settings fallback
     const fetchLatestPublicSettings = async () => {
-      if (!supabase) return;
       try {
         let fetchedData = null;
-        const { data: pubData, error: pubErr } = await supabase
-          .from('public_settings')
-          .select('*')
-          .eq('id', 'default')
-          .maybeSingle();
-
-        if (!pubErr && pubData) {
-          fetchedData = pubData;
-        } else {
-          const { data: altData } = await supabase
-            .from('settings')
+        if (supabase) {
+          const { data: pubData, error: pubErr } = await supabase
+            .from('public_settings')
             .select('*')
-            .or('id.eq.default,id.eq.store_config')
+            .eq('id', 'default')
             .maybeSingle();
-          if (altData) fetchedData = altData;
+
+          if (!pubErr && pubData) {
+            fetchedData = pubData;
+          } else {
+            const { data: altData } = await supabase
+              .from('settings')
+              .select('*')
+              .or('id.eq.default,id.eq.store_config')
+              .maybeSingle();
+            if (altData) fetchedData = altData;
+          }
+        }
+
+        // Fallback to /api/settings if Supabase client not present or returned nothing
+        if (!fetchedData) {
+          const apiRes = await fetch('/api/settings').then((r) => r.json()).catch(() => null);
+          if (apiRes?.settings) {
+            fetchedData = apiRes.settings;
+          }
         }
 
         if (fetchedData && isMounted) {
@@ -378,7 +387,26 @@ export function StoreProvider({ children }) {
 
     loadInitialData();
 
-    if (!supabase) return;
+    // D. Refetch fallback every 15 seconds if realtime disconnects or misses events
+    const pollInterval = setInterval(() => {
+      fetchLatestPublicSettings();
+    }, 15000);
+
+    // E. Refetch immediately when browser tab becomes active
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchLatestPublicSettings();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    if (!supabase) {
+      return () => {
+        isMounted = false;
+        clearInterval(pollInterval);
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
+    }
 
     // B. Realtime Subscription on products table
     const productsChannel = supabase
@@ -442,19 +470,6 @@ export function StoreProvider({ children }) {
         handleSettingsRealtimeChange
       )
       .subscribe();
-
-    // D. Refetch fallback every 15 seconds if realtime disconnects or misses events
-    const pollInterval = setInterval(() => {
-      fetchLatestPublicSettings();
-    }, 15000);
-
-    // E. Refetch immediately when browser tab becomes active
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        fetchLatestPublicSettings();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       isMounted = false;
